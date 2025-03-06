@@ -468,6 +468,20 @@ struct ContentView: View {
     @StateObject private var subwayStationsManager = SubwayStationsManager()
     @State private var mapViewCoordinator: MapView.Coordinator?
     @State private var selectedDirection: Direction = .uptown
+    @State private var timer: Timer?
+    
+    func startTimer() {
+        // Cancel any existing timer
+        timer?.invalidate()
+        
+        // Create a new timer that fires every 30 seconds
+        timer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
+            if let location = locationManager.location {
+                print("\nRefreshing arrival times...")
+                subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
+            }
+        }
+    }
     
     var body: some View {
         NavigationView {
@@ -533,14 +547,21 @@ struct ContentView: View {
             .onAppear {
                 subwayStationsManager.loadStations()
                 locationManager.requestLocation()
+                startTimer()
+            }
+            .onDisappear {
+                // Clean up timer when view disappears
+                timer?.invalidate()
+                timer = nil
             }
             .onChange(of: locationManager.location) { newLocation in
                 if let location = newLocation {
                     subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
+                    // Restart timer when location changes
+                    startTimer()
                 }
             }
             .onChange(of: selectedDirection) { _ in
-                // Refresh arrival times when direction changes
                 if let location = locationManager.location {
                     subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
                 }
