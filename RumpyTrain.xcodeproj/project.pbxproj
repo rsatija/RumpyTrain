@@ -8,11 +8,25 @@
 
 /* Begin PBXBuildFile section */
 		22FF55392D79415000F8D936 /* stops.txt in Resources */ = {isa = PBXBuildFile; fileRef = 22FF55382D79415000F8D936 /* stops.txt */; };
+		22FF55522D794A8500F8D936 /* agency.txt in Resources */ = {isa = PBXBuildFile; fileRef = 22FF554B2D794A8500F8D936 /* agency.txt */; };
+		22FF55532D794A8500F8D936 /* transfers.txt in Resources */ = {isa = PBXBuildFile; fileRef = 22FF55502D794A8500F8D936 /* transfers.txt */; };
+		22FF55542D794A8500F8D936 /* calendar.txt in Resources */ = {isa = PBXBuildFile; fileRef = 22FF554C2D794A8500F8D936 /* calendar.txt */; };
+		22FF55552D794A8500F8D936 /* stop_times.txt in Resources */ = {isa = PBXBuildFile; fileRef = 22FF554F2D794A8500F8D936 /* stop_times.txt */; };
+		22FF55562D794A8500F8D936 /* shapes.txt in Resources */ = {isa = PBXBuildFile; fileRef = 22FF554E2D794A8500F8D936 /* shapes.txt */; };
+		22FF55572D794A8500F8D936 /* trips.txt in Resources */ = {isa = PBXBuildFile; fileRef = 22FF55512D794A8500F8D936 /* trips.txt */; };
+		22FF555A2D794AB700F8D936 /* routes.txt in Resources */ = {isa = PBXBuildFile; fileRef = 22FF55592D794AB700F8D936 /* routes.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		22FF55252D793FE800F8D936 /* RumpyTrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RumpyTrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		22FF55382D79415000F8D936 /* stops.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = stops.txt; sourceTree = "<group>"; };
+		22FF554B2D794A8500F8D936 /* agency.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = agency.txt; sourceTree = "<group>"; };
+		22FF554C2D794A8500F8D936 /* calendar.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = calendar.txt; sourceTree = "<group>"; };
+		22FF554E2D794A8500F8D936 /* shapes.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = shapes.txt; sourceTree = "<group>"; };
+		22FF554F2D794A8500F8D936 /* stop_times.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = stop_times.txt; sourceTree = "<group>"; };
+		22FF55502D794A8500F8D936 /* transfers.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = transfers.txt; sourceTree = "<group>"; };
+		22FF55512D794A8500F8D936 /* trips.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = trips.txt; sourceTree = "<group>"; };
+		22FF55592D794AB700F8D936 /* routes.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = routes.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -37,6 +51,13 @@
 		22FF551C2D793FE800F8D936 = {
 			isa = PBXGroup;
 			children = (
+				22FF55592D794AB700F8D936 /* routes.txt */,
+				22FF554B2D794A8500F8D936 /* agency.txt */,
+				22FF554C2D794A8500F8D936 /* calendar.txt */,
+				22FF554E2D794A8500F8D936 /* shapes.txt */,
+				22FF554F2D794A8500F8D936 /* stop_times.txt */,
+				22FF55502D794A8500F8D936 /* transfers.txt */,
+				22FF55512D794A8500F8D936 /* trips.txt */,
 				22FF55382D79415000F8D936 /* stops.txt */,
 				22FF55272D793FE800F8D936 /* RumpyTrain */,
 				22FF55262D793FE800F8D936 /* Products */,
@@ -115,6 +136,13 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				22FF555A2D794AB700F8D936 /* routes.txt in Resources */,
+				22FF55522D794A8500F8D936 /* agency.txt in Resources */,
+				22FF55532D794A8500F8D936 /* transfers.txt in Resources */,
+				22FF55542D794A8500F8D936 /* calendar.txt in Resources */,
+				22FF55552D794A8500F8D936 /* stop_times.txt in Resources */,
+				22FF55562D794A8500F8D936 /* shapes.txt in Resources */,
+				22FF55572D794A8500F8D936 /* trips.txt in Resources */,
 				22FF55392D79415000F8D936 /* stops.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

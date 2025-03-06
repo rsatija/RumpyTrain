@@ -9,12 +9,33 @@ import SwiftUI
 import CoreLocation
 import MapKit
 
+struct Route: Identifiable {
+    let id: String
+    let name: String
+    let color: Color
+    
+    init(id: String, name: String, color: String) {
+        self.id = id
+        self.name = name
+        // Convert hex color to SwiftUI Color
+        let hex = color.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        var rgb: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&rgb)
+        self.color = Color(
+            red: Double((rgb & 0xFF0000) >> 16) / 255.0,
+            green: Double((rgb & 0x00FF00) >> 8) / 255.0,
+            blue: Double(rgb & 0x0000FF) / 255.0
+        )
+    }
+}
+
 struct Station: Identifiable {
     let id: String
     let name: String
     let latitude: Double
     let longitude: Double
     var distance: Double?
+    var routes: [Route]
     
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -52,36 +73,153 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 
 class SubwayStationsManager: ObservableObject {
     @Published var stations: [Station] = []
+    private var routes: [String: Route] = [:]
+    private var stopToRoutes: [String: Set<String>] = [:] // stopId -> routeIds
     
-    func loadStations() {
-        guard let path = Bundle.main.path(forResource: "stops", ofType: "txt"),
+    private func loadRoutes() {
+        guard let path = Bundle.main.path(forResource: "routes", ofType: "txt"),
               let content = try? String(contentsOfFile: path, encoding: .utf8) else {
-            print("Error loading stops.txt")
+            print("DEBUG: Failed to load routes.txt")
             return
         }
         
         let lines = content.components(separatedBy: .newlines)
-        let headers = lines[0].components(separatedBy: ",")
+        print("DEBUG: Found \(lines.count) lines in routes.txt")
+        
+        for line in lines.dropFirst() {
+            let components = line.components(separatedBy: ",")
+            guard components.count >= 4 else { 
+                print("DEBUG: Invalid route line: \(line)")
+                continue 
+            }
+            let routeId = components[1].trimmingCharacters(in: .whitespaces) // route_id is in column 1
+            let routeName = components[2].trimmingCharacters(in: .whitespaces) // route_short_name is in column 2
+            let routeColor = components[7].trimmingCharacters(in: .whitespaces) // route_color is in column 7
+            routes[routeId] = Route(id: routeId, name: routeName, color: routeColor)
+        }
+        print("DEBUG: Loaded \(routes.count) routes")
+        routes.forEach { routeId, route in
+            print("DEBUG: Route: \(routeId) -> \(route.name)")
+        }
+    }
+    
+    private func loadTrips() -> [String: String] {
+        guard let path = Bundle.main.path(forResource: "trips", ofType: "txt"),
+              let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            print("DEBUG: Failed to load trips.txt")
+            return [:]
+        }
+        
+        var tripRoutes: [String: String] = [:]
+        let lines = content.components(separatedBy: .newlines)
+        print("DEBUG: Found \(lines.count) lines in trips.txt")
+        
+        for line in lines.dropFirst() {
+            let components = line.components(separatedBy: ",")
+            guard components.count >= 2 else {
+                print("DEBUG: Invalid trip line: \(line)")
+                continue
+            }
+            let routeId = components[0].trimmingCharacters(in: .whitespaces) // route_id is in column 0
+            let tripId = components[1].trimmingCharacters(in: .whitespaces) // trip_id is in column 1
+            tripRoutes[tripId] = routeId
+        }
+        print("DEBUG: Loaded \(tripRoutes.count) trip-route mappings")
+        return tripRoutes
+    }
+    
+    private func loadStopTimes(tripRoutes: [String: String]) {
+        guard let path = Bundle.main.path(forResource: "stop_times", ofType: "txt"),
+              let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            print("DEBUG: Failed to load stop_times.txt")
+            return
+        }
+        
+        let lines = content.components(separatedBy: .newlines)
+        print("DEBUG: Found \(lines.count) lines in stop_times.txt")
+        
+        for line in lines.dropFirst() {
+            let components = line.components(separatedBy: ",")
+            guard components.count >= 3 else {
+                print("DEBUG: Invalid stop_time line: \(line)")
+                continue
+            }
+            let tripId = components[0].trimmingCharacters(in: .whitespaces)
+            let stopId = components[1].trimmingCharacters(in: .whitespaces)
+            
+            // Remove the direction suffix (S, N) from the stop ID
+            let baseStopId = String(stopId.dropLast())
+            
+            if let routeId = tripRoutes[tripId] {
+                if stopToRoutes[baseStopId] == nil {
+                    stopToRoutes[baseStopId] = []
+                }
+                stopToRoutes[baseStopId]?.insert(routeId)
+            }
+        }
+        print("DEBUG: Created \(stopToRoutes.count) stop-route mappings")
+        // Debug print first few stop-route mappings
+        for (stopId, routeIds) in stopToRoutes.prefix(5) {
+            print("DEBUG: Stop \(stopId) has routes: \(routeIds.joined(separator: ", "))")
+        }
+    }
+    
+    func loadStations() {
+        print("\nDEBUG: Starting station loading process")
+        
+        // Load routes first
+        loadRoutes()
+        
+        // Load trips and create trip -> route mapping
+        let tripRoutes = loadTrips()
+        
+        // Load stop times and create stop -> routes mapping
+        loadStopTimes(tripRoutes: tripRoutes)
+        
+        // Load stations
+        guard let path = Bundle.main.path(forResource: "stops", ofType: "txt"),
+              let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            print("DEBUG: Failed to load stops.txt")
+            return
+        }
+        
+        let lines = content.components(separatedBy: .newlines)
+        print("DEBUG: Found \(lines.count) lines in stops.txt")
         
         stations = lines.dropFirst().compactMap { line -> Station? in
             let components = line.components(separatedBy: ",")
             guard components.count >= 4,
                   let lat = Double(components[2]),
                   let lon = Double(components[3]) else {
+                print("DEBUG: Invalid station line: \(line)")
                 return nil
             }
             
             // Only include parent stations (location_type == 1)
             if components[4] == "1" {
+                let stationId = components[0]
+                let stationRoutes = (stopToRoutes[stationId] ?? [])
+                    .compactMap { routes[$0] }
+                    .sorted { $0.name < $1.name }
+                
+                print("DEBUG: Station \(components[1]) (ID: \(stationId)) has \(stationRoutes.count) routes")
+                stationRoutes.forEach { route in
+                    print("DEBUG: - Route: \(route.name)")
+                }
+                
                 return Station(
-                    id: components[0],
+                    id: stationId,
                     name: components[1],
                     latitude: lat,
-                    longitude: lon
+                    longitude: lon,
+                    distance: nil,
+                    routes: stationRoutes
                 )
             }
             return nil
         }
+        
+        print("DEBUG: Loaded \(stations.count) stations")
     }
     
     func updateDistances(from location: CLLocation) {
@@ -91,6 +229,14 @@ class SubwayStationsManager: ObservableObject {
             updatedStation.distance = location.distance(from: stationLocation)
             return updatedStation
         }.sorted { ($0.distance ?? Double.infinity) < ($1.distance ?? Double.infinity) }
+        
+        print("\nDEBUG: Updated distances, first 5 stations:")
+        stations.prefix(5).forEach { station in
+            print("DEBUG: \(station.name) - \(station.routes.count) routes")
+            station.routes.forEach { route in
+                print("DEBUG: - \(route.name)")
+            }
+        }
     }
 }
 
@@ -267,7 +413,7 @@ struct ContentView: View {
                 if let location = locationManager.location {
                     List {
                         ForEach(subwayStationsManager.stations.prefix(5)) { station in
-                            VStack(alignment: .leading) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text(station.name)
                                     .font(.headline)
                                 if let distance = station.distance {
@@ -275,7 +421,19 @@ struct ContentView: View {
                                         .font(.subheadline)
                                         .foregroundColor(.secondary)
                                 }
+                                HStack(spacing: 4) {
+                                    ForEach(station.routes) { route in
+                                        Text(route.name)
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(route.color)
+                                            .clipShape(Capsule())
+                                    }
+                                }
                             }
+                            .padding(.vertical, 4)
                         }
                     }
                 } else {
