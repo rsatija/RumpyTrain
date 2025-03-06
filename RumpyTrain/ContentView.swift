@@ -191,7 +191,6 @@ class SubwayStationsManager: ObservableObject {
             guard components.count >= 4,
                   let lat = Double(components[2]),
                   let lon = Double(components[3]) else {
-                print("DEBUG: Invalid station line: \(line)")
                 return nil
             }
             
@@ -201,11 +200,6 @@ class SubwayStationsManager: ObservableObject {
                 let stationRoutes = (stopToRoutes[stationId] ?? [])
                     .compactMap { routes[$0] }
                     .sorted { $0.name < $1.name }
-                
-                print("DEBUG: Station \(components[1]) (ID: \(stationId)) has \(stationRoutes.count) routes")
-                stationRoutes.forEach { route in
-                    print("DEBUG: - Route: \(route.name)")
-                }
                 
                 return Station(
                     id: stationId,
@@ -230,9 +224,9 @@ class SubwayStationsManager: ObservableObject {
             return updatedStation
         }.sorted { ($0.distance ?? Double.infinity) < ($1.distance ?? Double.infinity) }
         
-        print("\nDEBUG: Updated distances, first 5 stations:")
+        print("\nDEBUG: Nearest 5 subway stations:")
         stations.prefix(5).forEach { station in
-            print("DEBUG: \(station.name) - \(station.routes.count) routes")
+            print("DEBUG: \(station.name) (ID: \(station.id)) - \(station.routes.count) routes")
             station.routes.forEach { route in
                 print("DEBUG: - \(route.name)")
             }
@@ -411,30 +405,44 @@ struct ContentView: View {
                 }
                 
                 if let location = locationManager.location {
-                    List {
-                        ForEach(subwayStationsManager.stations.prefix(5)) { station in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(station.name)
-                                    .font(.headline)
-                                if let distance = station.distance {
-                                    Text(String(format: "%.1f meters away", distance))
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                HStack(spacing: 4) {
-                                    ForEach(station.routes) { route in
-                                        Text(route.name)
-                                            .font(.system(size: 14, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(route.color)
-                                            .clipShape(Capsule())
+                    ScrollView {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible()),
+                            GridItem(.flexible())
+                        ], spacing: 16) {
+                            ForEach(subwayStationsManager.stations.prefix(5)) { station in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(station.name)
+                                        .font(.headline)
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.8)
+                                    if let distance = station.distance {
+                                        Text(String(format: "%.1f meters away", distance))
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 4) {
+                                            ForEach(station.routes) { route in
+                                                Text(route.name)
+                                                    .font(.system(size: 12, weight: .bold))
+                                                    .foregroundColor(.white)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(route.color)
+                                                    .clipShape(Capsule())
+                                            }
+                                        }
                                     }
                                 }
+                                .padding(8)
+                                .background(Color(.systemBackground))
+                                .cornerRadius(8)
+                                .shadow(radius: 2)
                             }
-                            .padding(.vertical, 4)
                         }
+                        .padding()
                     }
                 } else {
                     Spacer()
