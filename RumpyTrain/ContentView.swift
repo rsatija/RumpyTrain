@@ -462,38 +462,30 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 // Title
                 Text("RumpyTrain")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(.blue)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
+                    .padding(.vertical, 4)
                 
-                ZStack {
-                    MapView(location: locationManager.location, 
-                           stations: subwayStationsManager.stations,
-                           coordinator: $mapViewCoordinator)
-                        .frame(height: UIScreen.main.bounds.height / 4)
-                    
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                mapViewCoordinator?.resetZoom()
-                            }) {
-                                Image(systemName: "scope")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.blue)
-                                    .padding(12)
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                                    .shadow(radius: 2)
-                            }
-                            .padding(.trailing, 16)
-                            .padding(.top, 16)
+                // Map with overlay button
+                MapView(location: locationManager.location, 
+                       stations: subwayStationsManager.stations,
+                       coordinator: $mapViewCoordinator)
+                    .frame(height: UIScreen.main.bounds.height / 6)
+                    .overlay(
+                        Button(action: {
+                            mapViewCoordinator?.resetZoom()
+                        }) {
+                            Image(systemName: "scope")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.blue)
+                                .padding(8)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                                .shadow(radius: 1)
                         }
-                        Spacer()
-                    }
-                }
-                .padding(.bottom, 8)
+                        .padding(8),
+                        alignment: .bottomTrailing
+                    )
                 
                 // Direction Toggle
                 Picker("Direction", selection: $selectedDirection) {
@@ -502,7 +494,8 @@ struct ContentView: View {
                     Text("Downtown").tag(Direction.downtown)
                 }
                 .pickerStyle(SegmentedPickerStyle())
-                .padding()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
                 
                 if let location = locationManager.location {
                     ScrollView {
