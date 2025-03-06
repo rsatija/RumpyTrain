@@ -111,14 +111,8 @@ struct MapView: UIViewRepresentable {
         mapView.removeAnnotations(mapView.annotations)
         
         // Add station annotations
-        let annotations = stations.prefix(5).map { station -> MKPointAnnotation in
-            let annotation = MKPointAnnotation()
-            annotation.coordinate = station.coordinate
-            annotation.title = station.name
-            if let distance = station.distance {
-                annotation.subtitle = String(format: "%.1f meters away", distance)
-            }
-            return annotation
+        let annotations = stations.prefix(5).map { station -> StationAnnotation in
+            StationAnnotation(station: station)
         }
         mapView.addAnnotations(annotations)
         
@@ -148,7 +142,7 @@ struct MapView: UIViewRepresentable {
             guard !annotation.isKind(of: MKUserLocation.self) else { return nil }
             
             let identifier = "Station"
-            var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+            var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
             
             if view == nil {
                 view = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
@@ -156,9 +150,36 @@ struct MapView: UIViewRepresentable {
                 view?.annotation = annotation
             }
             
-            view?.canShowCallout = true
+            // Configure the marker view
+            if let markerView = view as? MKMarkerAnnotationView {
+                markerView.displayPriority = .required // Highest priority, will always show
+                markerView.clusteringIdentifier = nil  // Disable clustering
+                markerView.canShowCallout = true
+                markerView.markerTintColor = .red
+                markerView.collisionMode = .circle // Helps prevent overlap
+            }
+            
             return view
         }
+    }
+}
+
+class StationAnnotation: NSObject, MKAnnotation {
+    let coordinate: CLLocationCoordinate2D
+    let title: String?
+    let subtitle: String?
+    let station: Station
+    
+    init(station: Station) {
+        self.coordinate = station.coordinate
+        self.title = station.name
+        if let distance = station.distance {
+            self.subtitle = String(format: "%.1f meters away", distance)
+        } else {
+            self.subtitle = nil
+        }
+        self.station = station
+        super.init()
     }
 }
 
