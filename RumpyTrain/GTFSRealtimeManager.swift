@@ -74,10 +74,20 @@ class GTFSRealtimeManager {
         }
     }
     
-    func formatArrivalTimes(_ times: [String: [(Date, String)]]) -> String {
-        var output = "\nNext arrivals for nearest station:\n"
+    func formatArrivalTimes(_ times: [String: [(Date, String)]], stationName: String) -> String {
+        var output = "\nNext arrivals for \(stationName):\n"
         
-        for (routeId, arrivals) in times {
+        // Sort routes alphabetically with numbers first
+        let sortedRoutes = times.keys.sorted { route1, route2 in
+            let isNum1 = Int(route1) != nil
+            let isNum2 = Int(route2) != nil
+            if isNum1 && !isNum2 { return true }
+            if !isNum1 && isNum2 { return false }
+            return route1 < route2
+        }
+        
+        for routeId in sortedRoutes {
+            guard let arrivals = times[routeId] else { continue }
             let nextTen = arrivals.prefix(10)
             let timeStrings = nextTen.map { arrival -> String in
                 let formatter = DateFormatter()
@@ -90,5 +100,10 @@ class GTFSRealtimeManager {
         }
         
         return output
+    }
+    
+    // Keep the old method for backward compatibility
+    func formatArrivalTimes(_ times: [String: [(Date, String)]]) -> String {
+        return formatArrivalTimes(times, stationName: "nearest station")
     }
 } 

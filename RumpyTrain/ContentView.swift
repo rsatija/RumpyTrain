@@ -235,7 +235,7 @@ class SubwayStationsManager: ObservableObject {
             Task {
                 do {
                     let arrivalTimes = try await gtfsRealtimeManager.fetchArrivalTimes(for: nearestStation.id)
-                    print(gtfsRealtimeManager.formatArrivalTimes(arrivalTimes))
+                    print(gtfsRealtimeManager.formatArrivalTimes(arrivalTimes, stationName: nearestStation.name))
                 } catch {
                     print("DEBUG: Failed to fetch arrival times: \(error)")
                 }
