@@ -59,6 +59,10 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         locationManager.requestLocation()
     }
     
+    func setManualLocation(_ location: CLLocation) {
+        self.location = location
+    }
+    
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         location = locations.first
     }
@@ -260,6 +264,7 @@ struct MapView: UIViewRepresentable {
     let location: CLLocation?
     let stations: [Station]
     @Binding var coordinator: Coordinator?
+    let onLocationLongPress: (CLLocationCoordinate2D) -> Void
     
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapView
@@ -268,6 +273,15 @@ struct MapView: UIViewRepresentable {
         init(_ parent: MapView) {
             self.parent = parent
             super.init()
+        }
+        
+        @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+            guard gesture.state == .began,
+                  let mapView = mapView else { return }
+            
+            let point = gesture.location(in: mapView)
+            let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            parent.onLocationLongPress(coordinate)
         }
         
         func updateParent(_ newParent: MapView) {
@@ -336,6 +350,12 @@ struct MapView: UIViewRepresentable {
         mapView.showsUserLocation = true
         mapView.userTrackingMode = .follow
         context.coordinator.mapView = mapView
+        
+        // Add long press gesture recognizer
+        let longPressGesture = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
+        longPressGesture.minimumPressDuration = 0.5
+        mapView.addGestureRecognizer(longPressGesture)
+        
         return mapView
     }
     
@@ -472,6 +492,12 @@ struct ContentView: View {
     @State private var selectedDirection: Direction = .uptown
     @State private var timer: Timer?
     
+    func handleMapLongPress(at coordinate: CLLocationCoordinate2D) {
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        locationManager.setManualLocation(location)
+        subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
+    }
+    
     func startTimer() {
         // Cancel any existing timer
         timer?.invalidate()
@@ -497,8 +523,9 @@ struct ContentView: View {
                 // Map with overlay button
                 MapView(location: locationManager.location, 
                        stations: subwayStationsManager.stations,
-                       coordinator: $mapViewCoordinator)
-                    .frame(height: UIScreen.main.bounds.height / 6)
+                       coordinator: $mapViewCoordinator,
+                       onLocationLongPress: handleMapLongPress)
+                    .frame(height: UIScreen.main.bounds.height * 0.3)
                     .overlay(
                         Button(action: {
                             mapViewCoordinator?.resetZoom()
@@ -567,6 +594,7 @@ struct ContentView: View {
                     subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
                 }
             }
+            .preferredColorScheme(.light)
         }
     }
 }
