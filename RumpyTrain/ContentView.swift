@@ -106,6 +106,10 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             print("[LOCATION] Unknown authorization status")
         }
     }
+    
+    func getCurrentLocation() -> CLLocation? {
+        return locationManager.location
+    }
 }
 
 class SubwayStationsManager: ObservableObject {
@@ -293,6 +297,7 @@ struct MapView: UIViewRepresentable {
     let stations: [Station]
     @Binding var coordinator: Coordinator?
     let onLocationLongPress: (CLLocationCoordinate2D) -> Void
+    let onResetLocation: () -> Void  // Add callback for reset
     
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapView
@@ -370,31 +375,29 @@ struct MapView: UIViewRepresentable {
         }
         
         func resetZoom() {
-            guard let mapView = mapView,
-                  let location = parent.location else { return }
+            guard let mapView = mapView else { return }
             
-            // Create a list of coordinates including user location and all stations
-            var coordinates: [CLLocationCoordinate2D] = [location.coordinate]
-            coordinates.append(contentsOf: parent.stations.prefix(6).map { $0.coordinate })
-            
-            // Add manual location pin if it exists
-            if let manualLocation = manualLocationAnnotation {
-                coordinates.append(manualLocation.coordinate)
+            // Remove any manual location pin
+            if let existingAnnotation = manualLocationAnnotation {
+                mapView.removeAnnotation(existingAnnotation)
+                manualLocationAnnotation = nil
             }
             
-            // Create a map rect that includes all coordinates
-            let mapRect = coordinates.reduce(MKMapRect.null) { rect, coordinate in
-                let point = MKMapPoint(coordinate)
-                let pointRect = MKMapRect(x: point.x, y: point.y, width: 0, height: 0)
-                return rect.isNull ? pointRect : rect.union(pointRect)
+            // Reset to user's actual location
+            parent.onResetLocation()
+            
+            // Wait briefly for location update before zooming
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                guard let userLocation = mapView.userLocation.location else { return }
+                
+                // Create a region centered on user location
+                let region = MKCoordinateRegion(
+                    center: userLocation.coordinate,
+                    latitudinalMeters: 1000,
+                    longitudinalMeters: 1000
+                )
+                mapView.setRegion(region, animated: true)
             }
-            
-            // Expand the rect slightly to ensure all points are visible
-            let expandedRect = mapRect.insetBy(dx: -mapRect.size.width * 0.01, dy: -mapRect.size.height * 0.01)
-            
-            // Add some padding around the region
-            let padding = UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50)
-            mapView.setVisibleMapRect(expandedRect, edgePadding: padding, animated: true)
         }
     }
     
@@ -612,6 +615,13 @@ struct ContentView: View {
         subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
     }
     
+    func handleResetLocation() {
+        if let userLocation = locationManager.getCurrentLocation() {
+            locationManager.location = userLocation
+            subwayStationsManager.updateDistances(from: userLocation, direction: selectedDirection)
+        }
+    }
+    
     func startTimer() {
         // Cancel any existing timer
         timer?.invalidate()
@@ -638,7 +648,8 @@ struct ContentView: View {
                 MapView(location: locationManager.location, 
                        stations: subwayStationsManager.stations,
                        coordinator: $mapViewCoordinator,
-                       onLocationLongPress: handleMapLongPress)
+                       onLocationLongPress: handleMapLongPress,
+                       onResetLocation: handleResetLocation)
                     .frame(height: UIScreen.main.bounds.height * 0.3)
                     .overlay(
                         Button(action: {
