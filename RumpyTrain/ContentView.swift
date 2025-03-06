@@ -460,6 +460,13 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                // Title
+                Text("RumpyTrain")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundColor(.blue)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
+                
                 ZStack {
                     MapView(location: locationManager.location, 
                            stations: subwayStationsManager.stations,
@@ -486,6 +493,7 @@ struct ContentView: View {
                         Spacer()
                     }
                 }
+                .padding(.bottom, 8)
                 
                 // Direction Toggle
                 Picker("Direction", selection: $selectedDirection) {
