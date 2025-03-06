@@ -15,6 +15,10 @@ struct Station: Identifiable {
     let latitude: Double
     let longitude: Double
     var distance: Double?
+    
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
 }
 
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
@@ -90,27 +94,103 @@ class SubwayStationsManager: ObservableObject {
     }
 }
 
+struct MapView: UIViewRepresentable {
+    let location: CLLocation?
+    let stations: [Station]
+    
+    func makeUIView(context: Context) -> MKMapView {
+        let mapView = MKMapView()
+        mapView.delegate = context.coordinator
+        mapView.showsUserLocation = true
+        mapView.userTrackingMode = .follow
+        return mapView
+    }
+    
+    func updateUIView(_ mapView: MKMapView, context: Context) {
+        // Remove existing annotations
+        mapView.removeAnnotations(mapView.annotations)
+        
+        // Add station annotations
+        let annotations = stations.prefix(5).map { station -> MKPointAnnotation in
+            let annotation = MKPointAnnotation()
+            annotation.coordinate = station.coordinate
+            annotation.title = station.name
+            if let distance = station.distance {
+                annotation.subtitle = String(format: "%.1f meters away", distance)
+            }
+            return annotation
+        }
+        mapView.addAnnotations(annotations)
+        
+        // Set the region to show all annotations
+        if let location = location {
+            let region = MKCoordinateRegion(
+                center: location.coordinate,
+                latitudinalMeters: 2000,
+                longitudinalMeters: 2000
+            )
+            mapView.setRegion(region, animated: true)
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, MKMapViewDelegate {
+        var parent: MapView
+        
+        init(_ parent: MapView) {
+            self.parent = parent
+        }
+        
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            guard !annotation.isKind(of: MKUserLocation.self) else { return nil }
+            
+            let identifier = "Station"
+            var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+            
+            if view == nil {
+                view = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            } else {
+                view?.annotation = annotation
+            }
+            
+            view?.canShowCallout = true
+            return view
+        }
+    }
+}
+
 struct ContentView: View {
     @StateObject private var locationManager = LocationManager()
     @StateObject private var subwayStationsManager = SubwayStationsManager()
     
     var body: some View {
         NavigationView {
-            List {
-                if let location = locationManager.location {
-                    ForEach(subwayStationsManager.stations.prefix(5)) { station in
-                        VStack(alignment: .leading) {
-                            Text(station.name)
-                                .font(.headline)
-                            if let distance = station.distance {
-                                Text(String(format: "%.1f meters away", distance))
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
+            ZStack {
+                MapView(location: locationManager.location, stations: subwayStationsManager.stations)
+                    .edgesIgnoringSafeArea(.all)
+                
+                VStack {
+                    Spacer()
+                    if let location = locationManager.location {
+                        List {
+                            ForEach(subwayStationsManager.stations.prefix(5)) { station in
+                                VStack(alignment: .leading) {
+                                    Text(station.name)
+                                        .font(.headline)
+                                    if let distance = station.distance {
+                                        Text(String(format: "%.1f meters away", distance))
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
                             }
                         }
+                        .frame(height: 200)
+                        .background(Color(.systemBackground))
                     }
-                } else {
-                    Text("Loading location...")
                 }
             }
             .navigationTitle("Nearest Subway Stations")
