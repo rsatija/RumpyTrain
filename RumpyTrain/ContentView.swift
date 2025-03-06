@@ -47,32 +47,63 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     @Published var location: CLLocation?
     @Published var authorizationStatus: CLAuthorizationStatus?
+    private let dateFormatter: DateFormatter
     
     override init() {
+        dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "HH:mm:ss.SSS"
+        
         super.init()
+        print("\n[LOCATION] \(dateFormatter.string(from: Date())) - LocationManager initialized")
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        print("[LOCATION] \(dateFormatter.string(from: Date())) - Requesting location authorization")
         locationManager.requestWhenInUseAuthorization()
     }
     
     func requestLocation() {
+        print("[LOCATION] \(dateFormatter.string(from: Date())) - Requesting location update")
         locationManager.requestLocation()
     }
     
     func setManualLocation(_ location: CLLocation) {
+        print("[LOCATION] \(dateFormatter.string(from: Date())) - Setting manual location: \(location.coordinate)")
         self.location = location
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        location = locations.first
+        if let location = locations.first {
+            print("[LOCATION] \(dateFormatter.string(from: Date())) - Location update received: \(location.coordinate)")
+            print("[LOCATION] Accuracy: \(location.horizontalAccuracy)m")
+            print("[LOCATION] Age: \(Date().timeIntervalSince(location.timestamp))s")
+            self.location = location
+        }
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("Location error: \(error.localizedDescription)")
+        print("[LOCATION] \(dateFormatter.string(from: Date())) - Location error: \(error.localizedDescription)")
+        if let clError = error as? CLError {
+            print("[LOCATION] CLError code: \(clError.code.rawValue)")
+        }
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        print("[LOCATION] \(dateFormatter.string(from: Date())) - Authorization status changed to: \(manager.authorizationStatus.rawValue)")
+        
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            print("[LOCATION] \(dateFormatter.string(from: Date())) - Authorization granted, requesting location")
+            locationManager.requestLocation()
+        case .denied:
+            print("[LOCATION] Location access denied by user")
+        case .restricted:
+            print("[LOCATION] Location access restricted")
+        case .notDetermined:
+            print("[LOCATION] Location authorization not determined")
+        @unknown default:
+            print("[LOCATION] Unknown authorization status")
+        }
     }
 }
 
