@@ -6,6 +6,9 @@ enum MTAFeed {
     case ace
     case numbers   // 1,2,3,4,5,6,7,S
     case nqrw
+    case jz
+    case l
+    case g
     
     var url: String {
         switch self {
@@ -17,6 +20,12 @@ enum MTAFeed {
             return "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"
         case .nqrw:
             return "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw"
+        case .jz:
+            return "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz"
+        case .l:
+            return "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
+        case .g:
+            return "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g"
         }
     }
     
@@ -30,12 +39,18 @@ enum MTAFeed {
             return ["1", "2", "3", "4", "5", "6", "7", "S"]
         case .nqrw:
             return ["N", "Q", "R", "W"]
+        case .jz:
+            return ["J", "Z"]
+        case .l:
+            return ["L"]
+        case .g:
+            return ["G"]
         }
     }
 }
 
 class GTFSRealtimeManager {
-    private let feeds: [MTAFeed] = [.bdfm, .ace, .numbers, .nqrw]
+    private let feeds: [MTAFeed] = [.bdfm, .ace, .numbers, .nqrw, .jz, .l, .g]
     
     func fetchArrivalTimes(for stationId: String) async throws -> [String: [(Date, String)]] {
         var allArrivalTimes: [String: [(Date, String)]] = [:]
