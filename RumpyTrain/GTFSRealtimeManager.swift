@@ -1,27 +1,80 @@
 import Foundation
 import SwiftProtobuf
 
+enum MTAFeed {
+    case bdfm
+    case ace
+    
+    var url: String {
+        switch self {
+        case .bdfm:
+            return "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm"
+        case .ace:
+            return "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"
+        }
+    }
+    
+    var routes: Set<String> {
+        switch self {
+        case .bdfm:
+            return ["B", "D", "F", "M"]
+        case .ace:
+            return ["A", "C", "E"]
+        }
+    }
+}
+
 class GTFSRealtimeManager {
-    private let feedURL = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm"
+    private let feeds: [MTAFeed] = [.bdfm, .ace]
     
     func fetchArrivalTimes(for stationId: String) async throws -> [String: [(Date, String)]] {
+        var allArrivalTimes: [String: [(Date, String)]] = [:]
+        
+        // Fetch from all feeds concurrently
+        try await withThrowingTaskGroup(of: [String: [(Date, String)]].self) { group in
+            for feed in feeds {
+                group.addTask {
+                    try await self.fetchArrivalTimesForFeed(feed, stationId: stationId)
+                }
+            }
+            
+            // Combine results from all feeds
+            for try await feedTimes in group {
+                for (route, times) in feedTimes {
+                    if allArrivalTimes[route] == nil {
+                        allArrivalTimes[route] = []
+                    }
+                    allArrivalTimes[route]?.append(contentsOf: times)
+                }
+            }
+        }
+        
+        // Sort arrival times for each route
+        for route in allArrivalTimes.keys {
+            allArrivalTimes[route]?.sort { $0.0 < $1.0 }
+        }
+        
+        return allArrivalTimes
+    }
+    
+    private func fetchArrivalTimesForFeed(_ feed: MTAFeed, stationId: String) async throws -> [String: [(Date, String)]] {
         do {
-            guard let url = URL(string: feedURL) else {
-                print("ERROR: Invalid URL")
+            guard let url = URL(string: feed.url) else {
+                print("ERROR: Invalid URL for feed: \(feed)")
                 throw URLError(.badURL)
             }
             
             let (data, response) = try await URLSession.shared.data(from: url)
             
             guard let httpResponse = response as? HTTPURLResponse else {
-                print("ERROR: Invalid response type")
+                print("ERROR: Invalid response type for feed: \(feed)")
                 throw URLError(.badServerResponse)
             }
             
             let feedMessage = try TransitRealtime_FeedMessage(serializedData: data)
             
             if feedMessage.entity.isEmpty {
-                print("WARNING: Feed message contains no entities")
+                print("WARNING: Feed message contains no entities for feed: \(feed)")
                 return [:]
             }
             
@@ -43,7 +96,7 @@ class GTFSRealtimeManager {
                     if stopIdBase == stationIdBase {
                         let routeId = tripUpdate.trip.routeID
                         
-                        if ["B", "D", "F", "M"].contains(routeId) {
+                        if feed.routes.contains(routeId) {
                             if arrivalTimes[routeId] == nil {
                                 arrivalTimes[routeId] = []
                             }
@@ -61,15 +114,9 @@ class GTFSRealtimeManager {
                 }
             }
             
-            // Sort arrival times for each route
-            for routeId in arrivalTimes.keys {
-                arrivalTimes[routeId]?.sort { $0.0 < $1.0 }
-            }
-            
             return arrivalTimes
         } catch {
-            print("ERROR: An error occurred: \(error)")
-            print("ERROR: Error description: \(error.localizedDescription)")
+            print("ERROR: Failed to fetch times for feed \(feed): \(error.localizedDescription)")
             throw error
         }
     }
