@@ -224,8 +224,8 @@ class SubwayStationsManager: ObservableObject {
             return updatedStation
         }.sorted { ($0.distance ?? Double.infinity) < ($1.distance ?? Double.infinity) }
         
-        print("\nDEBUG: Nearest 5 subway stations:")
-        stations.prefix(5).forEach { station in
+        print("\nDEBUG: Nearest 6 subway stations:")
+        stations.prefix(6).forEach { station in
             print("DEBUG: \(station.name) (ID: \(station.id)) - \(station.routes.count) routes")
             station.routes.forEach { route in
                 print("DEBUG: - \(route.name)")
@@ -282,7 +282,7 @@ struct MapView: UIViewRepresentable {
             
             // Create a list of coordinates including user location and all stations
             var coordinates: [CLLocationCoordinate2D] = [location.coordinate]
-            coordinates.append(contentsOf: parent.stations.prefix(5).map { $0.coordinate })
+            coordinates.append(contentsOf: parent.stations.prefix(6).map { $0.coordinate })
             
             // Create a map rect that includes all coordinates
             let mapRect = coordinates.reduce(MKMapRect.null) { rect, coordinate in
@@ -325,7 +325,7 @@ struct MapView: UIViewRepresentable {
         mapView.removeAnnotations(mapView.annotations)
         
         // Add station annotations
-        let annotations = stations.prefix(5).map { station -> StationAnnotation in
+        let annotations = stations.prefix(6).map { station -> StationAnnotation in
             StationAnnotation(station: station)
         }
         mapView.addAnnotations(annotations)
@@ -333,7 +333,7 @@ struct MapView: UIViewRepresentable {
         // Set the region to show all annotations and user location
         if let location = location {
             var coordinates: [CLLocationCoordinate2D] = [location.coordinate]
-            coordinates.append(contentsOf: stations.prefix(5).map { $0.coordinate })
+            coordinates.append(contentsOf: stations.prefix(6).map { $0.coordinate })
             
             let mapRect = coordinates.reduce(MKMapRect.null) { rect, coordinate in
                 let point = MKMapPoint(coordinate)
@@ -408,10 +408,9 @@ struct ContentView: View {
                     ScrollView {
                         LazyVGrid(columns: [
                             GridItem(.flexible()),
-                            GridItem(.flexible()),
                             GridItem(.flexible())
                         ], spacing: 16) {
-                            ForEach(subwayStationsManager.stations.prefix(5)) { station in
+                            ForEach(subwayStationsManager.stations.prefix(6)) { station in
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(station.name)
                                         .font(.headline)
