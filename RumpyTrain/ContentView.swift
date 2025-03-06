@@ -56,7 +56,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         super.init()
         print("\n[LOCATION] \(dateFormatter.string(from: Date())) - LocationManager initialized")
         locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        print("[LOCATION] \(dateFormatter.string(from: Date())) - Setting accuracy to 100 meters")
         print("[LOCATION] \(dateFormatter.string(from: Date())) - Requesting location authorization")
         locationManager.requestWhenInUseAuthorization()
     }
