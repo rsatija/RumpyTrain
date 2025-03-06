@@ -36,6 +36,7 @@ struct Station: Identifiable {
     let longitude: Double
     var distance: Double?
     var routes: [Route]
+    var arrivalTimes: [String: [(Date, String)]]? // Add arrival times storage
     
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -222,21 +223,17 @@ class SubwayStationsManager: ObservableObject {
             return updatedStation
         }.sorted { ($0.distance ?? Double.infinity) < ($1.distance ?? Double.infinity) }
         
-        print("\nDEBUG: Nearest 6 subway stations:")
-        stations.prefix(6).forEach { station in
-            print("DEBUG: \(station.name) (ID: \(station.id)) - \(station.routes.count) routes")
-            station.routes.forEach { route in
-                print("DEBUG: - \(route.name)")
-            }
-        }
-        
         // Fetch real-time arrival times for the 6 nearest stations
         Task {
-            for station in stations.prefix(6) {
+            var updatedStations = stations
+            for (index, station) in stations.prefix(6).enumerated() {
                 do {
                     let arrivalTimes = try await gtfsRealtimeManager.fetchArrivalTimes(for: station.id, direction: direction)
-                    // Add a blank line between stations for better readability
-                    print("\n" + gtfsRealtimeManager.formatArrivalTimes(arrivalTimes, stationName: station.name))
+                    // Update the station with arrival times
+                    DispatchQueue.main.async {
+                        updatedStations[index].arrivalTimes = arrivalTimes
+                        self.stations = updatedStations
+                    }
                 } catch {
                     print("DEBUG: Failed to fetch arrival times for \(station.name): \(error)")
                 }
@@ -380,6 +377,81 @@ class StationAnnotation: NSObject, MKAnnotation {
     }
 }
 
+struct StationCard: View {
+    let station: Station
+    
+    func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    func minutesUntil(_ date: Date) -> Int {
+        return Int(date.timeIntervalSince(Date()) / 60)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(station.name)
+                .font(.headline)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+            if let distance = station.distance {
+                Text(String(format: "%.1f meters away", distance))
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            
+            // Route badges
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(station.routes) { route in
+                        Text(route.name)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(route.color)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+            
+            // Arrival times
+            if let arrivalTimes = station.arrivalTimes {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(arrivalTimes.keys).sorted(), id: \.self) { routeId in
+                            if let times = arrivalTimes[routeId]?.prefix(3) {
+                                HStack(spacing: 2) {
+                                    Text(routeId)
+                                        .font(.system(size: 12, weight: .bold))
+                                    ForEach(Array(times.enumerated()), id: \.offset) { _, arrival in
+                                        Text("\(minutesUntil(arrival.0))m")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.secondary)
+                                            .padding(.horizontal, 4)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 60)
+            } else {
+                Text("Loading arrivals...")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(minHeight: 120)
+        .padding(12)
+        .background(Color(.systemBackground))
+        .cornerRadius(8)
+        .shadow(radius: 2)
+    }
+}
+
 struct ContentView: View {
     @StateObject private var locationManager = LocationManager()
     @StateObject private var subwayStationsManager = SubwayStationsManager()
@@ -432,36 +504,7 @@ struct ContentView: View {
                             GridItem(.flexible())
                         ], spacing: 12) {
                             ForEach(subwayStationsManager.stations.prefix(6)) { station in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(station.name)
-                                        .font(.headline)
-                                        .lineLimit(2)
-                                        .minimumScaleFactor(0.8)
-                                    if let distance = station.distance {
-                                        Text(String(format: "%.1f meters away", distance))
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    Spacer()
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 4) {
-                                            ForEach(station.routes) { route in
-                                                Text(route.name)
-                                                    .font(.system(size: 12, weight: .bold))
-                                                    .foregroundColor(.white)
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 2)
-                                                    .background(route.color)
-                                                    .clipShape(Capsule())
-                                            }
-                                        }
-                                    }
-                                }
-                                .frame(minHeight: 120)
-                                .padding(12)
-                                .background(Color(.systemBackground))
-                                .cornerRadius(8)
-                                .shadow(radius: 2)
+                                StationCard(station: station)
                             }
                         }
                         .padding(12)
