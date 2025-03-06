@@ -230,14 +230,15 @@ class SubwayStationsManager: ObservableObject {
             }
         }
         
-        // Fetch real-time arrival times for the nearest station
-        if let nearestStation = stations.first {
-            Task {
+        // Fetch real-time arrival times for the 6 nearest stations
+        Task {
+            for station in stations.prefix(6) {
                 do {
-                    let arrivalTimes = try await gtfsRealtimeManager.fetchArrivalTimes(for: nearestStation.id)
-                    print(gtfsRealtimeManager.formatArrivalTimes(arrivalTimes, stationName: nearestStation.name))
+                    let arrivalTimes = try await gtfsRealtimeManager.fetchArrivalTimes(for: station.id)
+                    // Add a blank line between stations for better readability
+                    print("\n" + gtfsRealtimeManager.formatArrivalTimes(arrivalTimes, stationName: station.name))
                 } catch {
-                    print("DEBUG: Failed to fetch arrival times: \(error)")
+                    print("DEBUG: Failed to fetch arrival times for \(station.name): \(error)")
                 }
             }
         }
