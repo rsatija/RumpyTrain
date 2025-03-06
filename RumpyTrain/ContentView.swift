@@ -234,19 +234,6 @@ class SubwayStationsManager: ObservableObject {
                 do {
                     let arrivalTimes = try await gtfsRealtimeManager.fetchArrivalTimes(for: station.id, direction: direction)
                     
-                    // Debug print arrival times
-                    print("\n=== \(station.name) Arrival Times ===")
-                    for (routeId, times) in arrivalTimes.sorted(by: { $0.key < $1.key }) {
-                        print("Route \(routeId):")
-                        for (time, direction, isRealTime) in times.prefix(3) {
-                            let minutes = Int(time.timeIntervalSince(Date()) / 60)
-                            let timeType = time.timeIntervalSince(Date()) < 0 ? "(departed)" :
-                                         isRealTime ? "(real-time)" : "(scheduled)"
-                            print("  \(minutes)m \(timeType) (\(direction))")
-                        }
-                    }
-                    print("================================")
-                    
                     // Update the station with arrival times
                     DispatchQueue.main.async {
                         updatedStations[index].arrivalTimes = arrivalTimes
