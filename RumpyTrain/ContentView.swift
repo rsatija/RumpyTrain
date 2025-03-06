@@ -214,7 +214,7 @@ class SubwayStationsManager: ObservableObject {
         print("DEBUG: Loaded \(stations.count) stations")
     }
     
-    func updateDistances(from location: CLLocation) {
+    func updateDistances(from location: CLLocation, direction: Direction = .all) {
         stations = stations.map { station in
             var updatedStation = station
             let stationLocation = CLLocation(latitude: station.latitude, longitude: station.longitude)
@@ -234,7 +234,7 @@ class SubwayStationsManager: ObservableObject {
         Task {
             for station in stations.prefix(6) {
                 do {
-                    let arrivalTimes = try await gtfsRealtimeManager.fetchArrivalTimes(for: station.id)
+                    let arrivalTimes = try await gtfsRealtimeManager.fetchArrivalTimes(for: station.id, direction: direction)
                     // Add a blank line between stations for better readability
                     print("\n" + gtfsRealtimeManager.formatArrivalTimes(arrivalTimes, stationName: station.name))
                 } catch {
@@ -384,6 +384,7 @@ struct ContentView: View {
     @StateObject private var locationManager = LocationManager()
     @StateObject private var subwayStationsManager = SubwayStationsManager()
     @State private var mapViewCoordinator: MapView.Coordinator?
+    @State private var selectedDirection: Direction = .uptown
     
     var body: some View {
         NavigationView {
@@ -414,6 +415,15 @@ struct ContentView: View {
                         Spacer()
                     }
                 }
+                
+                // Direction Toggle
+                Picker("Direction", selection: $selectedDirection) {
+                    Text("All").tag(Direction.all)
+                    Text("Uptown").tag(Direction.uptown)
+                    Text("Downtown").tag(Direction.downtown)
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding()
                 
                 if let location = locationManager.location {
                     ScrollView {
@@ -469,7 +479,13 @@ struct ContentView: View {
             }
             .onChange(of: locationManager.location) { newLocation in
                 if let location = newLocation {
-                    subwayStationsManager.updateDistances(from: location)
+                    subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
+                }
+            }
+            .onChange(of: selectedDirection) { _ in
+                // Refresh arrival times when direction changes
+                if let location = locationManager.location {
+                    subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
                 }
             }
         }

@@ -1,6 +1,20 @@
 import Foundation
 import SwiftProtobuf
 
+enum Direction {
+    case uptown
+    case downtown
+    case all
+    
+    var description: String {
+        switch self {
+        case .uptown: return "uptown"
+        case .downtown: return "downtown"
+        case .all: return "all"
+        }
+    }
+}
+
 enum MTAFeed {
     case bdfm
     case ace
@@ -52,14 +66,14 @@ enum MTAFeed {
 class GTFSRealtimeManager {
     private let feeds: [MTAFeed] = [.bdfm, .ace, .numbers, .nqrw, .jz, .l, .g]
     
-    func fetchArrivalTimes(for stationId: String) async throws -> [String: [(Date, String)]] {
+    func fetchArrivalTimes(for stationId: String, direction: Direction = .all) async throws -> [String: [(Date, String)]] {
         var allArrivalTimes: [String: [(Date, String)]] = [:]
         
         // Fetch from all feeds concurrently
         try await withThrowingTaskGroup(of: [String: [(Date, String)]].self) { group in
             for feed in feeds {
                 group.addTask {
-                    try await self.fetchArrivalTimesForFeed(feed, stationId: stationId)
+                    try await self.fetchArrivalTimesForFeed(feed, stationId: stationId, direction: direction)
                 }
             }
             
@@ -82,7 +96,7 @@ class GTFSRealtimeManager {
         return allArrivalTimes
     }
     
-    private func fetchArrivalTimesForFeed(_ feed: MTAFeed, stationId: String) async throws -> [String: [(Date, String)]] {
+    private func fetchArrivalTimesForFeed(_ feed: MTAFeed, stationId: String, direction: Direction) async throws -> [String: [(Date, String)]] {
         do {
             guard let url = URL(string: feed.url) else {
                 print("ERROR: Invalid URL for feed: \(feed)")
@@ -122,13 +136,20 @@ class GTFSRealtimeManager {
                         let routeId = tripUpdate.trip.routeID
                         
                         if feed.routes.contains(routeId) {
+                            let stopDirection = stopTimeUpdate.stopID.hasSuffix("N") ? Direction.uptown : Direction.downtown
+                            
+                            // Filter by direction if specified
+                            if direction != .all && stopDirection != direction {
+                                continue
+                            }
+                            
                             if arrivalTimes[routeId] == nil {
                                 arrivalTimes[routeId] = []
                             }
                             
                             if stopTimeUpdate.arrival.hasTime {
                                 let date = Date(timeIntervalSince1970: TimeInterval(stopTimeUpdate.arrival.time))
-                                let direction = stopTimeUpdate.stopID.hasSuffix("N") ? "uptown" : "downtown"
+                                let direction = stopDirection.description
                                 // Only add future times
                                 if date > Date() {
                                     arrivalTimes[routeId]?.append((date, direction))
