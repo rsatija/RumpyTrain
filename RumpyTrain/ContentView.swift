@@ -394,61 +394,60 @@ struct StationCard: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(station.name)
                 .font(.headline)
+                .fontWeight(.bold)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
-            if let distance = station.distance {
-                Text(String(format: "%.1f meters away", distance))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            // Route badges
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(station.routes) { route in
-                        Text(route.name)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(route.color)
-                            .clipShape(Capsule())
-                    }
-                }
-            }
+                .padding(.bottom, 4)
             
             // Arrival times
             if let arrivalTimes = station.arrivalTimes {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(arrivalTimes.keys).sorted(), id: \.self) { routeId in
-                            if let times = arrivalTimes[routeId]?.prefix(3) {
-                                HStack(spacing: 2) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(arrivalTimes.keys).sorted(), id: \.self) { routeId in
+                        if let times = arrivalTimes[routeId], !times.isEmpty {
+                            let displayTimes = Array(times.prefix(3))
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
                                     Text(routeId)
-                                        .font(.system(size: 12, weight: .bold))
-                                    ForEach(Array(times.enumerated()), id: \.offset) { _, arrival in
-                                        Text("\(minutesUntil(arrival.0))m")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .frame(width: 24, height: 24)
+                                        .background(station.routes.first(where: { $0.id == routeId })?.color ?? .gray)
+                                        .foregroundColor(.white)
+                                        .clipShape(Circle())
+                                    
+                                    if !displayTimes.isEmpty {
+                                        Text(displayTimes[0].1)  // Show direction
                                             .font(.system(size: 12))
                                             .foregroundColor(.secondary)
-                                            .padding(.horizontal, 4)
+                                    }
+                                }
+                                
+                                HStack(spacing: 6) {
+                                    ForEach(Array(displayTimes.enumerated()), id: \.offset) { _, arrival in
+                                        Text("\(minutesUntil(arrival.0))m")
+                                            .font(.system(size: 13))
+                                            .foregroundColor(.primary)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.gray.opacity(0.1))
+                                            .cornerRadius(6)
                                     }
                                 }
                             }
+                            .padding(.vertical, 2)
                         }
                     }
                 }
-                .frame(maxHeight: 60)
             } else {
                 Text("Loading arrivals...")
-                    .font(.system(size: 12))
+                    .font(.system(size: 14))
                     .foregroundColor(.secondary)
             }
         }
-        .frame(minHeight: 120)
+        .frame(maxWidth: .infinity, minHeight: 120)
         .padding(12)
         .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(radius: 2)
+        .cornerRadius(12)
+        .shadow(radius: 1, x: 0, y: 1)
     }
 }
 
@@ -500,14 +499,16 @@ struct ContentView: View {
                 if let location = locationManager.location {
                     ScrollView {
                         LazyVGrid(columns: [
-                            GridItem(.flexible()),
-                            GridItem(.flexible())
-                        ], spacing: 12) {
+                            GridItem(.flexible(), spacing: 16),
+                            GridItem(.flexible(), spacing: 16)
+                        ], spacing: 16) {
                             ForEach(subwayStationsManager.stations.prefix(6)) { station in
                                 StationCard(station: station)
+                                    .frame(maxWidth: .infinity)
                             }
                         }
-                        .padding(12)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                     }
                 } else {
                     Spacer()
