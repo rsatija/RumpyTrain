@@ -260,6 +260,15 @@ class SubwayStationsManager: ObservableObject {
     }
 }
 
+class ManualLocationAnnotation: NSObject, MKAnnotation {
+    let coordinate: CLLocationCoordinate2D
+    
+    init(coordinate: CLLocationCoordinate2D) {
+        self.coordinate = coordinate
+        super.init()
+    }
+}
+
 struct MapView: UIViewRepresentable {
     let location: CLLocation?
     let stations: [Station]
@@ -269,6 +278,7 @@ struct MapView: UIViewRepresentable {
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapView
         var mapView: MKMapView?
+        var manualLocationAnnotation: ManualLocationAnnotation?
         
         init(_ parent: MapView) {
             self.parent = parent
@@ -281,6 +291,17 @@ struct MapView: UIViewRepresentable {
             
             let point = gesture.location(in: mapView)
             let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            
+            // Remove existing manual location pin if it exists
+            if let existingAnnotation = manualLocationAnnotation {
+                mapView.removeAnnotation(existingAnnotation)
+            }
+            
+            // Create and add new manual location pin
+            let annotation = ManualLocationAnnotation(coordinate: coordinate)
+            manualLocationAnnotation = annotation
+            mapView.addAnnotation(annotation)
+            
             parent.onLocationLongPress(coordinate)
         }
         
@@ -289,8 +310,26 @@ struct MapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard !annotation.isKind(of: MKUserLocation.self) else { return nil }
+            if annotation.isKind(of: MKUserLocation.self) {
+                return nil
+            }
             
+            if annotation is ManualLocationAnnotation {
+                let identifier = "ManualLocation"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKPinAnnotationView
+                
+                if view == nil {
+                    view = MKPinAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                } else {
+                    view?.annotation = annotation
+                }
+                
+                view?.pinTintColor = .green
+                view?.animatesDrop = true
+                return view
+            }
+            
+            // Handle station annotations
             let identifier = "Station"
             var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
             
@@ -300,7 +339,6 @@ struct MapView: UIViewRepresentable {
                 view?.annotation = annotation
             }
             
-            // Configure the marker view
             if let markerView = view as? MKMarkerAnnotationView {
                 markerView.displayPriority = .required
                 markerView.clusteringIdentifier = nil
@@ -319,6 +357,11 @@ struct MapView: UIViewRepresentable {
             // Create a list of coordinates including user location and all stations
             var coordinates: [CLLocationCoordinate2D] = [location.coordinate]
             coordinates.append(contentsOf: parent.stations.prefix(6).map { $0.coordinate })
+            
+            // Add manual location pin if it exists
+            if let manualLocation = manualLocationAnnotation {
+                coordinates.append(manualLocation.coordinate)
+            }
             
             // Create a map rect that includes all coordinates
             let mapRect = coordinates.reduce(MKMapRect.null) { rect, coordinate in
@@ -363,8 +406,9 @@ struct MapView: UIViewRepresentable {
         // Update coordinator's parent reference
         context.coordinator.updateParent(self)
         
-        // Remove existing annotations
-        mapView.removeAnnotations(mapView.annotations)
+        // Remove existing station annotations but keep manual location pin
+        let stationAnnotations = mapView.annotations.filter { $0 is StationAnnotation }
+        mapView.removeAnnotations(stationAnnotations)
         
         // Add station annotations
         let annotations = stations.prefix(6).map { station -> StationAnnotation in
@@ -376,6 +420,11 @@ struct MapView: UIViewRepresentable {
         if let location = location {
             var coordinates: [CLLocationCoordinate2D] = [location.coordinate]
             coordinates.append(contentsOf: stations.prefix(6).map { $0.coordinate })
+            
+            // Add manual location pin if it exists
+            if let manualLocation = context.coordinator.manualLocationAnnotation {
+                coordinates.append(manualLocation.coordinate)
+            }
             
             let mapRect = coordinates.reduce(MKMapRect.null) { rect, coordinate in
                 let point = MKMapPoint(coordinate)
