@@ -75,6 +75,7 @@ class SubwayStationsManager: ObservableObject {
     @Published var stations: [Station] = []
     private var routes: [String: Route] = [:]
     private var stopToRoutes: [String: Set<String>] = [:] // stopId -> routeIds
+    private let gtfsRealtimeManager = GTFSRealtimeManager()
     
     private func loadRoutes() {
         guard let path = Bundle.main.path(forResource: "routes", ofType: "txt"),
@@ -98,9 +99,6 @@ class SubwayStationsManager: ObservableObject {
             routes[routeId] = Route(id: routeId, name: routeName, color: routeColor)
         }
         print("DEBUG: Loaded \(routes.count) routes")
-        routes.forEach { routeId, route in
-            print("DEBUG: Route: \(routeId) -> \(route.name)")
-        }
     }
     
     private func loadTrips() -> [String: String] {
@@ -229,6 +227,18 @@ class SubwayStationsManager: ObservableObject {
             print("DEBUG: \(station.name) (ID: \(station.id)) - \(station.routes.count) routes")
             station.routes.forEach { route in
                 print("DEBUG: - \(route.name)")
+            }
+        }
+        
+        // Fetch real-time arrival times for the nearest station
+        if let nearestStation = stations.first {
+            Task {
+                do {
+                    let arrivalTimes = try await gtfsRealtimeManager.fetchArrivalTimes(for: nearestStation.id)
+                    print(gtfsRealtimeManager.formatArrivalTimes(arrivalTimes))
+                } catch {
+                    print("DEBUG: Failed to fetch arrival times: \(error)")
+                }
             }
         }
     }
