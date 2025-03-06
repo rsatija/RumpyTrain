@@ -381,7 +381,7 @@ struct ContentView: View {
                     MapView(location: locationManager.location, 
                            stations: subwayStationsManager.stations,
                            coordinator: $mapViewCoordinator)
-                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .frame(height: UIScreen.main.bounds.height / 4)
                     
                     VStack {
                         HStack {
@@ -409,9 +409,9 @@ struct ContentView: View {
                         LazyVGrid(columns: [
                             GridItem(.flexible()),
                             GridItem(.flexible())
-                        ], spacing: 16) {
+                        ], spacing: 12) {
                             ForEach(subwayStationsManager.stations.prefix(6)) { station in
-                                VStack(alignment: .leading, spacing: 4) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     Text(station.name)
                                         .font(.headline)
                                         .lineLimit(2)
@@ -421,6 +421,7 @@ struct ContentView: View {
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                     }
+                                    Spacer()
                                     ScrollView(.horizontal, showsIndicators: false) {
                                         HStack(spacing: 4) {
                                             ForEach(station.routes) { route in
@@ -435,13 +436,14 @@ struct ContentView: View {
                                         }
                                     }
                                 }
-                                .padding(8)
+                                .frame(minHeight: 120)
+                                .padding(12)
                                 .background(Color(.systemBackground))
                                 .cornerRadius(8)
                                 .shadow(radius: 2)
                             }
                         }
-                        .padding()
+                        .padding(12)
                     }
                 } else {
                     Spacer()
@@ -449,7 +451,7 @@ struct ContentView: View {
                     Spacer()
                 }
             }
-            .navigationTitle("Nearest Subway Stations")
+            .navigationBarHidden(true)
             .onAppear {
                 subwayStationsManager.loadStations()
                 locationManager.requestLocation()
