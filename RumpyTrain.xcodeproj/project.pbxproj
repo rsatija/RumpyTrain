@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		22FF55392D79415000F8D936 /* stops.txt in Resources */ = {isa = PBXBuildFile; fileRef = 22FF55382D79415000F8D936 /* stops.txt */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		22FF55252D793FE800F8D936 /* RumpyTrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RumpyTrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		22FF55382D79415000F8D936 /* stops.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = stops.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -32,6 +37,7 @@
 		22FF551C2D793FE800F8D936 = {
 			isa = PBXGroup;
 			children = (
+				22FF55382D79415000F8D936 /* stops.txt */,
 				22FF55272D793FE800F8D936 /* RumpyTrain */,
 				22FF55262D793FE800F8D936 /* Products */,
 			);
@@ -109,6 +115,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				22FF55392D79415000F8D936 /* stops.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -255,6 +262,7 @@
 				DEVELOPMENT_TEAM = 4497B2XK93;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need your location to find the nearest subway stations.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -284,6 +292,7 @@
 				DEVELOPMENT_TEAM = 4497B2XK93;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need your location to find the nearest subway stations.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
