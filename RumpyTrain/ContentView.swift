@@ -411,6 +411,57 @@ class StationAnnotation: NSObject, MKAnnotation {
     }
 }
 
+struct SubwayLineIcon: View {
+    let routeId: String
+    let size: CGFloat
+    
+    private var backgroundColor: Color {
+        switch routeId {
+        case "1", "2", "3":
+            return Color(red: 0.937, green: 0.251, blue: 0.251)  // #EF4040 - Red
+        case "4", "5", "6", "6X":
+            return Color(red: 0, green: 0.569, blue: 0.369)      // #009159 - Green
+        case "7", "7X":
+            return Color(red: 0.753, green: 0.361, blue: 0.753)  // #B25AB2 - Purple
+        case "A", "C", "E":
+            return Color(red: 0, green: 0.349, blue: 0.647)      // #0059A5 - Blue
+        case "B", "D", "F", "M":
+            return Color(red: 1, green: 0.647, blue: 0)          // #FF9B00 - Orange
+        case "G":
+            return Color(red: 0.435, green: 0.808, blue: 0.275)  // #6FCE46 - Light Green
+        case "J", "Z":
+            return Color(red: 0.647, green: 0.455, blue: 0.192)  // #A57431 - Brown
+        case "L":
+            return Color(red: 0.667, green: 0.667, blue: 0.667)  // #AAAAAA - Gray
+        case "N", "Q", "R", "W":
+            return Color(red: 1, green: 0.851, blue: 0.263)      // #FFD943 - Yellow
+        case "S", "H":
+            return Color(red: 0.506, green: 0.506, blue: 0.506)  // #818181 - Dark Gray
+        default:
+            return .gray
+        }
+    }
+    
+    private var textColor: Color {
+        // Yellow background lines need black text for contrast
+        switch routeId {
+        case "N", "Q", "R", "W":
+            return .black
+        default:
+            return .white
+        }
+    }
+    
+    var body: some View {
+        Text(routeId)
+            .font(.system(size: size * 0.7, weight: .bold))
+            .frame(width: size, height: size)
+            .foregroundColor(textColor)
+            .background(backgroundColor)
+            .clipShape(Circle())
+    }
+}
+
 struct StationCard: View {
     let station: Station
     
@@ -441,12 +492,7 @@ struct StationCard: View {
                             let displayTimes = Array(times.prefix(3))
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack(spacing: 8) {
-                                    Text(routeId)
-                                        .font(.system(size: 14, weight: .bold))
-                                        .frame(width: 24, height: 24)
-                                        .background(station.routes.first(where: { $0.id == routeId })?.color ?? .gray)
-                                        .foregroundColor(.white)
-                                        .clipShape(Circle())
+                                    SubwayLineIcon(routeId: routeId, size: 24)
                                     
                                     if !displayTimes.isEmpty {
                                         Text(displayTimes[0].1)  // Show direction
