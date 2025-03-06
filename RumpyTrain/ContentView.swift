@@ -562,9 +562,9 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 // Title
                 Text("RumpyTrain")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
                     .foregroundColor(.blue)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 8)
                 
                 // Map with overlay button
                 MapView(location: locationManager.location, 
