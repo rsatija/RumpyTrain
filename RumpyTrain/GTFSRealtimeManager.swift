@@ -4,13 +4,11 @@ import SwiftProtobuf
 enum Direction {
     case uptown
     case downtown
-    case all
     
     var description: String {
         switch self {
         case .uptown: return "uptown"
         case .downtown: return "downtown"
-        case .all: return "all"
         }
     }
 }
@@ -66,11 +64,11 @@ enum MTAFeed {
 class GTFSRealtimeManager {
     private let feeds: [MTAFeed] = [.bdfm, .ace, .numbers, .nqrw, .jz, .l, .g]
     
-    func fetchArrivalTimes(for stationId: String, direction: Direction = .all) async throws -> [String: [(Date, String)]] {
-        var allArrivalTimes: [String: [(Date, String)]] = [:]
+    func fetchArrivalTimes(for stationId: String, direction: Direction) async throws -> [String: [(Date, String, Bool)]] {
+        var allArrivalTimes: [String: [(Date, String, Bool)]] = [:]
         
         // Fetch from all feeds concurrently
-        try await withThrowingTaskGroup(of: [String: [(Date, String)]].self) { group in
+        try await withThrowingTaskGroup(of: [String: [(Date, String, Bool)]].self) { group in
             for feed in feeds {
                 group.addTask {
                     try await self.fetchArrivalTimesForFeed(feed, stationId: stationId, direction: direction)
@@ -96,7 +94,7 @@ class GTFSRealtimeManager {
         return allArrivalTimes
     }
     
-    private func fetchArrivalTimesForFeed(_ feed: MTAFeed, stationId: String, direction: Direction) async throws -> [String: [(Date, String)]] {
+    private func fetchArrivalTimesForFeed(_ feed: MTAFeed, stationId: String, direction: Direction) async throws -> [String: [(Date, String, Bool)]] {
         do {
             guard let url = URL(string: feed.url) else {
                 print("ERROR: Invalid URL for feed: \(feed)")
@@ -117,7 +115,7 @@ class GTFSRealtimeManager {
                 return [:]
             }
             
-            var arrivalTimes: [String: [(Date, String)]] = [:]
+            var arrivalTimes: [String: [(Date, String, Bool)]] = [:]
             
             for entity in feedMessage.entity {
                 if !entity.hasTripUpdate { continue }
@@ -138,8 +136,8 @@ class GTFSRealtimeManager {
                         if feed.routes.contains(routeId) {
                             let stopDirection = stopTimeUpdate.stopID.hasSuffix("N") ? Direction.uptown : Direction.downtown
                             
-                            // Filter by direction if specified
-                            if direction != .all && stopDirection != direction {
+                            // Filter by direction
+                            if stopDirection != direction {
                                 continue
                             }
                             
@@ -150,9 +148,11 @@ class GTFSRealtimeManager {
                             if stopTimeUpdate.arrival.hasTime {
                                 let date = Date(timeIntervalSince1970: TimeInterval(stopTimeUpdate.arrival.time))
                                 let direction = stopDirection.description
+                                // Check if this is real-time data
+                                let isRealTime = tripUpdate.trip.scheduleRelationship == .scheduled
                                 // Only add future times
                                 if date > Date() {
-                                    arrivalTimes[routeId]?.append((date, direction))
+                                    arrivalTimes[routeId]?.append((date, direction, isRealTime))
                                 }
                             }
                         }
@@ -167,7 +167,7 @@ class GTFSRealtimeManager {
         }
     }
     
-    func formatArrivalTimes(_ times: [String: [(Date, String)]], stationName: String) -> String {
+    func formatArrivalTimes(_ times: [String: [(Date, String, Bool)]], stationName: String) -> String {
         var output = "\nNext arrivals for \(stationName):\n"
         
         // Sort routes alphabetically with numbers first
@@ -187,7 +187,8 @@ class GTFSRealtimeManager {
                 formatter.dateFormat = "HH:mm:ss"
                 let timeString = formatter.string(from: arrival.0)
                 let minutes = Int(arrival.0.timeIntervalSince(Date()) / 60)
-                return "\(timeString) (\(minutes) min) \(arrival.1)"
+                let statusIndicator = arrival.2 ? "(real-time)" : "(scheduled)"
+                return "\(timeString) (\(minutes) min) \(arrival.1) \(statusIndicator)"
             }
             output += "\(routeId) train: \(timeStrings.joined(separator: ", "))\n"
         }
@@ -196,7 +197,7 @@ class GTFSRealtimeManager {
     }
     
     // Keep the old method for backward compatibility
-    func formatArrivalTimes(_ times: [String: [(Date, String)]]) -> String {
+    func formatArrivalTimes(_ times: [String: [(Date, String, Bool)]]) -> String {
         return formatArrivalTimes(times, stationName: "nearest station")
     }
 } 

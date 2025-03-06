@@ -36,7 +36,7 @@ struct Station: Identifiable {
     let longitude: Double
     var distance: Double?
     var routes: [Route]
-    var arrivalTimes: [String: [(Date, String)]]? // Add arrival times storage
+    var arrivalTimes: [String: [(Date, String, Bool)]]? // Add arrival times storage with real-time indicator
     
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -215,7 +215,7 @@ class SubwayStationsManager: ObservableObject {
         print("DEBUG: Loaded \(stations.count) stations")
     }
     
-    func updateDistances(from location: CLLocation, direction: Direction = .all) {
+    func updateDistances(from location: CLLocation, direction: Direction) {
         stations = stations.map { station in
             var updatedStation = station
             let stationLocation = CLLocation(latitude: station.latitude, longitude: station.longitude)
@@ -234,9 +234,11 @@ class SubwayStationsManager: ObservableObject {
                     print("\n=== \(station.name) Arrival Times ===")
                     for (routeId, times) in arrivalTimes.sorted(by: { $0.key < $1.key }) {
                         print("Route \(routeId):")
-                        for (time, direction) in times.prefix(3) {
+                        for (time, direction, isRealTime) in times.prefix(3) {
                             let minutes = Int(time.timeIntervalSince(Date()) / 60)
-                            print("  \(minutes)m (\(direction))")
+                            let timeType = time.timeIntervalSince(Date()) < 0 ? "(departed)" :
+                                         isRealTime ? "(real-time)" : "(scheduled)"
+                            print("  \(minutes)m \(timeType) (\(direction))")
                         }
                     }
                     print("================================")
@@ -312,7 +314,7 @@ struct MapView: UIViewRepresentable {
             }
             
             // Expand the rect slightly to ensure all points are visible
-            let expandedRect = mapRect.insetBy(dx: -mapRect.size.width * 0.1, dy: -mapRect.size.height * 0.1)
+            let expandedRect = mapRect.insetBy(dx: -mapRect.size.width * 0.01, dy: -mapRect.size.height * 0.01)
             
             // Add some padding around the region
             let padding = UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50)
@@ -362,7 +364,7 @@ struct MapView: UIViewRepresentable {
             }
             
             // Expand the rect slightly to ensure all points are visible
-            let expandedRect = mapRect.insetBy(dx: -mapRect.size.width * 0.1, dy: -mapRect.size.height * 0.1)
+            let expandedRect = mapRect.insetBy(dx: -mapRect.size.width * 0.05, dy: -mapRect.size.height * 0.05)
             
             let padding = UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50)
             mapView.setVisibleMapRect(expandedRect, edgePadding: padding, animated: true)
@@ -515,7 +517,6 @@ struct ContentView: View {
                 
                 // Direction Toggle
                 Picker("Direction", selection: $selectedDirection) {
-                    Text("All").tag(Direction.all)
                     Text("Uptown").tag(Direction.uptown)
                     Text("Downtown").tag(Direction.downtown)
                 }
