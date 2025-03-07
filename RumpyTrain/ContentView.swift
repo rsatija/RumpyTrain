@@ -236,13 +236,24 @@ class SubwayStationsManager: ObservableObject {
             // Only include parent stations (location_type == 1)
             if components[4] == "1" {
                 let stationId = components[0]
+                let stationName = components[1]
                 let stationRoutes = (stopToRoutes[stationId] ?? [])
                     .compactMap { routes[$0] }
                     .sorted { $0.name < $1.name }
                 
+                // Debug print for Bleecker St
+                if stationName.contains("Bleecker") {
+                    print("\nDEBUG: Found Bleecker St station")
+                    print("DEBUG: Station ID: \(stationId)")
+                    print("DEBUG: Routes serving this station:")
+                    stationRoutes.forEach { route in
+                        print("DEBUG: Route \(route.name) (ID: \(route.id))")
+                    }
+                }
+                
                 return Station(
                     id: stationId,
-                    name: components[1],
+                    name: stationName,
                     latitude: lat,
                     longitude: lon,
                     distance: nil,

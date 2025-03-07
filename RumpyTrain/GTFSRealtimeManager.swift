@@ -48,7 +48,7 @@ enum MTAFeed {
         case .ace:
             return ["A", "C", "E"]
         case .numbers:
-            return ["1", "2", "3", "4", "5", "6", "7", "S"]
+            return ["1", "2", "3", "4", "5", "6", "6X", "7", "S"]
         case .nqrw:
             return ["N", "Q", "R", "W"]
         case .jz:
