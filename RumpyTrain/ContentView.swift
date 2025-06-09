@@ -634,10 +634,7 @@ struct ContentView: View {
     }
     
     func startTimer() {
-        // Cancel any existing timer
         timer?.invalidate()
-        
-        // Create a new timer that fires every 30 seconds
         timer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
             if let location = locationManager.location {
                 print("\nRefreshing arrival times...")
@@ -648,63 +645,64 @@ struct ContentView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Title
-                Text("RumpyTrain")
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
-                    .foregroundColor(.blue)
-                    .padding(.vertical, 8)
-                
-                // Map with overlay button
-                MapView(location: locationManager.location, 
-                       stations: subwayStationsManager.stations,
-                       coordinator: $mapViewCoordinator,
-                       onLocationLongPress: handleMapLongPress,
-                       onResetLocation: handleResetLocation)
-                    .frame(height: UIScreen.main.bounds.height * 0.3)
-                    .overlay(
-                        Button(action: {
-                            mapViewCoordinator?.resetZoom()
-                        }) {
-                            Image(systemName: "scope")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.blue)
-                                .padding(8)
-                                .background(Color.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 1)
-                        }
-                        .padding(8),
-                        alignment: .bottomTrailing
-                    )
-                
-                // Direction Toggle
-                Picker("Direction", selection: $selectedDirection) {
-                    Text("Uptown").tag(Direction.uptown)
-                    Text("Downtown").tag(Direction.downtown)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                
-                if let location = locationManager.location {
-                    ScrollView {
-                        LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: 16),
-                            GridItem(.flexible(), spacing: 16)
-                        ], spacing: 16) {
-                            ForEach(subwayStationsManager.stations.prefix(6)) { station in
-                                StationCard(station: station)
-                                    .frame(maxWidth: .infinity)
-                            }
-                        }
-                        .padding(.horizontal, 16)
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    // Title
+                    Text("RumpyTrain")
+                        .font(.system(size: min(geometry.size.width * 0.1, 40), weight: .bold, design: .rounded))
+                        .foregroundColor(.blue)
                         .padding(.vertical, 8)
+                    
+                    // Map with overlay button
+                    MapView(location: locationManager.location, 
+                           stations: subwayStationsManager.stations,
+                           coordinator: $mapViewCoordinator,
+                           onLocationLongPress: handleMapLongPress,
+                           onResetLocation: handleResetLocation)
+                        .frame(height: geometry.size.height * 0.3)
+                        .overlay(
+                            Button(action: {
+                                mapViewCoordinator?.resetZoom()
+                            }) {
+                                Image(systemName: "scope")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.blue)
+                                    .padding(8)
+                                    .background(Color.white)
+                                    .clipShape(Circle())
+                                    .shadow(radius: 1)
+                            }
+                            .padding(8),
+                            alignment: .bottomTrailing
+                        )
+                    
+                    // Direction Toggle
+                    Picker("Direction", selection: $selectedDirection) {
+                        Text("Uptown").tag(Direction.uptown)
+                        Text("Downtown").tag(Direction.downtown)
                     }
-                } else {
-                    Spacer()
-                    Text("Loading location...")
-                    Spacer()
+                    .pickerStyle(SegmentedPickerStyle())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    
+                    if let location = locationManager.location {
+                        ScrollView {
+                            LazyVGrid(columns: [
+                                GridItem(.adaptive(minimum: geometry.size.width > 768 ? 300 : 150), spacing: 16)
+                            ], spacing: 16) {
+                                ForEach(subwayStationsManager.stations.prefix(6)) { station in
+                                    StationCard(station: station)
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                        }
+                    } else {
+                        Spacer()
+                        Text("Loading location...")
+                        Spacer()
+                    }
                 }
             }
             .navigationBarHidden(true)
@@ -714,14 +712,12 @@ struct ContentView: View {
                 startTimer()
             }
             .onDisappear {
-                // Clean up timer when view disappears
                 timer?.invalidate()
                 timer = nil
             }
             .onChange(of: locationManager.location) { newLocation in
                 if let location = newLocation {
                     subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
-                    // Restart timer when location changes
                     startTimer()
                 }
             }
@@ -732,6 +728,7 @@ struct ContentView: View {
             }
             .preferredColorScheme(.light)
         }
+        .navigationViewStyle(StackNavigationViewStyle())
     }
 }
 
