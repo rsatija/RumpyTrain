@@ -765,43 +765,7 @@ struct StationCard: View {
         }
     }
     
-    func testSimpleLiveActivity() {
-        print("=== Testing Simple Live Activity ===")
-        
-        let attributes = RumpyTrainWidgetAttributes(
-            stationName: "Test Station",
-            routeId: "1"
-        )
-        
-        let contentState = RumpyTrainWidgetAttributes.ContentState(
-            nextArrivalTime: Date().addingTimeInterval(300), // 5 minutes from now
-            routeId: "1",
-            direction: "uptown",
-            stationName: "Test Station"
-        )
-        
-        do {
-            let activity = try Activity.request(
-                attributes: attributes,
-                contentState: contentState,
-                pushType: nil
-            )
-            print("✅ Simple Live Activity created successfully!")
-            print("Activity ID: \(activity.id)")
-            print("Activity state: \(activity.activityState)")
-            
-            // End it after 10 seconds for testing
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                Task {
-                    await activity.end(dismissalPolicy: .immediate)
-                    print("✅ Simple Live Activity ended")
-                }
-            }
-        } catch {
-            print("❌ Failed to create simple Live Activity: \(error)")
-            print("Error details: \(error.localizedDescription)")
-        }
-    }
+
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -840,9 +804,6 @@ struct StationCard: View {
             } else {
                 Button("Start Live Action") {
                     startLiveAction()
-                }
-                Button("Test Simple Live Activity") {
-                    testSimpleLiveActivity()
                 }
             }
             Button("Cancel", role: .cancel) { }
