@@ -123,6 +123,14 @@ struct RumpyTrainWidgetLiveActivity: Widget {
                         }
                     }
                 }
+                
+                // Last update timestamp
+                HStack {
+                    Spacer()
+                    Text("Updated \(Date(), style: .time)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
             }
             .padding(16)
             .activityBackgroundTint(Color(.systemBackground))
