@@ -96,16 +96,15 @@ struct RumpyTrainWidgetLiveActivity: Widget {
                                 // Arrival times
                                 HStack(spacing: 6) {
                                     ForEach(displayTimes, id: \.id) { arrival in
-                                        let minutesUntil = Int(arrival.time.timeIntervalSince(Date()) / 60)
                                         VStack(spacing: 1) {
-                                            Text("\(minutesUntil)")
+                                            Text(formatTime(arrival.time))
                                                 .font(.system(size: 16, weight: .bold))
                                                 .foregroundColor(.primary)
-                                            Text("min")
+                                            Text("arrival")
                                                 .font(.system(size: 9, weight: .medium))
                                                 .foregroundColor(.secondary)
                                         }
-                                        .frame(minWidth: 30)
+                                        .frame(minWidth: 40)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 4)
                                         .background(
@@ -146,8 +145,7 @@ struct RumpyTrainWidgetLiveActivity: Widget {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        let minutesUntil = Int(context.state.nextArrivalTime.timeIntervalSince(Date()) / 60)
-                        Text("\(minutesUntil)m")
+                        Text(formatTime(context.state.nextArrivalTime))
                             .font(.title2)
                             .fontWeight(.bold)
                     }
@@ -167,8 +165,7 @@ struct RumpyTrainWidgetLiveActivity: Widget {
                         .foregroundColor(.secondary)
                 }
             } compactLeading: {
-                let minutesUntil = Int(context.state.nextArrivalTime.timeIntervalSince(Date()) / 60)
-                Text("\(minutesUntil)m")
+                Text(formatTime(context.state.nextArrivalTime))
                     .font(.caption)
                     .fontWeight(.bold)
             } compactTrailing: {
@@ -179,6 +176,13 @@ struct RumpyTrainWidgetLiveActivity: Widget {
             .widgetURL(URL(string: "rumpytrain://station/\(context.attributes.stationName)"))
             .keylineTint(Color.blue)
         }
+    }
+    
+    // Helper function to format time as HH:MM
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 }
 
