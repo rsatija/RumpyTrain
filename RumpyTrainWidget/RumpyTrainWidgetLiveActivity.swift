@@ -70,26 +70,37 @@ struct RumpyTrainWidgetLiveActivity: Widget {
                     .fontWeight(.bold)
                     .lineLimit(1)
                 
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Next Train")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        let minutesUntil = Int(context.state.nextArrivalTime.timeIntervalSince(Date()) / 60)
-                        Text("\(minutesUntil)m")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(context.state.direction)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        SubwayLineIcon(routeId: context.state.routeId, size: 32)
+                // Show arrival times for multiple routes
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(context.state.allArrivalTimes.keys).sorted(), id: \.self) { routeId in
+                        if let times = context.state.allArrivalTimes[routeId], !times.isEmpty {
+                            let displayTimes = Array(times.prefix(2)) // Show next 2 trains
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
+                                    SubwayLineIcon(routeId: routeId, size: 20)
+                                    
+                                    if !displayTimes.isEmpty {
+                                        Text(displayTimes[0].direction)
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                
+                                HStack(spacing: 4) {
+                                    ForEach(displayTimes, id: \.id) { arrival in
+                                        let minutesUntil = Int(arrival.time.timeIntervalSince(Date()) / 60)
+                                        Text("\(minutesUntil)m")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(.primary)
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 1)
+                                            .background(Color.gray.opacity(0.1))
+                                            .cornerRadius(4)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 1)
+                        }
                     }
                 }
             }
@@ -151,21 +162,31 @@ extension RumpyTrainWidgetAttributes {
 
 extension RumpyTrainWidgetAttributes.ContentState {
     fileprivate static var sample: RumpyTrainWidgetAttributes.ContentState {
-        RumpyTrainWidgetAttributes.ContentState(
+        let sampleArrival1 = ArrivalTime(time: Date().addingTimeInterval(300), direction: "uptown", isRealTime: true)
+        let sampleArrival2 = ArrivalTime(time: Date().addingTimeInterval(420), direction: "uptown", isRealTime: false)
+        let sampleArrivalTimes = ["1": [sampleArrival1, sampleArrival2]]
+        
+        return RumpyTrainWidgetAttributes.ContentState(
             nextArrivalTime: Date().addingTimeInterval(300), // 5 minutes from now
             routeId: "1",
             direction: "uptown",
-            stationName: "Times Square-42 St"
+            stationName: "Times Square-42 St",
+            allArrivalTimes: sampleArrivalTimes
         )
      }
      
      fileprivate static var sample2: RumpyTrainWidgetAttributes.ContentState {
-         RumpyTrainWidgetAttributes.ContentState(
-             nextArrivalTime: Date().addingTimeInterval(180), // 3 minutes from now
-             routeId: "A",
-             direction: "downtown",
-             stationName: "Times Square-42 St"
-         )
+        let sampleArrival1 = ArrivalTime(time: Date().addingTimeInterval(180), direction: "downtown", isRealTime: true)
+        let sampleArrival2 = ArrivalTime(time: Date().addingTimeInterval(300), direction: "downtown", isRealTime: false)
+        let sampleArrivalTimes = ["A": [sampleArrival1, sampleArrival2]]
+        
+        return RumpyTrainWidgetAttributes.ContentState(
+            nextArrivalTime: Date().addingTimeInterval(180), // 3 minutes from now
+            routeId: "A",
+            direction: "downtown",
+            stationName: "Times Square-42 St",
+            allArrivalTimes: sampleArrivalTimes
+        )
      }
 }
 

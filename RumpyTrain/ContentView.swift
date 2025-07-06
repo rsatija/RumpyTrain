@@ -30,18 +30,7 @@ struct Route: Identifiable {
     }
 }
 
-struct ArrivalTime: Identifiable, Equatable {
-    let id = UUID()
-    let time: Date
-    let direction: String
-    let isRealTime: Bool
-    
-    static func == (lhs: ArrivalTime, rhs: ArrivalTime) -> Bool {
-        return lhs.time == rhs.time && 
-               lhs.direction == rhs.direction && 
-               lhs.isRealTime == rhs.isRealTime
-    }
-}
+
 
 struct Station: Identifiable {
     let id: String
@@ -697,7 +686,8 @@ struct StationCard: View {
             nextArrivalTime: arrival.time,
             routeId: nextRouteId,
             direction: arrival.direction,
-            stationName: station.name
+            stationName: station.name,
+            allArrivalTimes: arrivalTimes
         )
         
         do {
@@ -757,7 +747,8 @@ struct StationCard: View {
             nextArrivalTime: arrival.time,
             routeId: nextRouteId,
             direction: arrival.direction,
-            stationName: station.name
+            stationName: station.name,
+            allArrivalTimes: arrivalTimes
         )
         
         Task {
