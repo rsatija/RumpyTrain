@@ -563,7 +563,7 @@ struct ArrivalTimeView: View {
                 SubwayLineIcon(routeId: routeId, size: 24)
                 
                 if !displayTimes.isEmpty {
-                    Text(displayTimes[0].direction)  // Show direction
+                    Text("\(displayTimes[0].direction) departure")  // Show direction and departure
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }

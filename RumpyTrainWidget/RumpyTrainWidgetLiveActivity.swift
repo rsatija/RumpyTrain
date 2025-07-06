@@ -100,7 +100,7 @@ struct RumpyTrainWidgetLiveActivity: Widget {
                                             Text(formatTime(arrival.time))
                                                 .font(.system(size: 16, weight: .bold))
                                                 .foregroundColor(.primary)
-                                            Text("arrival")
+                                            Text("departure")
                                                 .font(.system(size: 9, weight: .medium))
                                                 .foregroundColor(.secondary)
                                         }
@@ -141,7 +141,7 @@ struct RumpyTrainWidgetLiveActivity: Widget {
                 // various regions, like leading/trailing/center/bottom
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(alignment: .leading) {
-                        Text("Next Train")
+                        Text("Next Departure")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         

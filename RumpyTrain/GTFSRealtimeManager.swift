@@ -145,8 +145,8 @@ class GTFSRealtimeManager {
                                 arrivalTimes[routeId] = []
                             }
                             
-                            if stopTimeUpdate.arrival.hasTime {
-                                let date = Date(timeIntervalSince1970: TimeInterval(stopTimeUpdate.arrival.time))
+                            if stopTimeUpdate.departure.hasTime {
+                                let date = Date(timeIntervalSince1970: TimeInterval(stopTimeUpdate.departure.time))
                                 let direction = stopDirection.description
                                 // Check if this is real-time data
                                 let isRealTime = tripUpdate.trip.scheduleRelationship == .scheduled
@@ -169,7 +169,7 @@ class GTFSRealtimeManager {
     }
     
     func formatArrivalTimes(_ times: [String: [ArrivalTime]], stationName: String) -> String {
-        var output = "\nNext arrivals for \(stationName):\n"
+        var output = "\nNext departures for \(stationName):\n"
         
         // Sort routes alphabetically with numbers first
         let sortedRoutes = times.keys.sorted { route1, route2 in
