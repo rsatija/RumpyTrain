@@ -64,47 +64,67 @@ struct RumpyTrainWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RumpyTrainWidgetAttributes.self) { context in
             // Lock screen/banner UI goes here
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Station name header
                 Text(context.attributes.stationName)
-                    .font(.headline)
+                    .font(.title2)
                     .fontWeight(.bold)
                     .lineLimit(1)
+                    .foregroundColor(.primary)
                 
                 // Show arrival times for multiple routes
-                VStack(alignment: .leading, spacing: 6) {
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 12) {
                     ForEach(Array(context.state.allArrivalTimes.keys).sorted(), id: \.self) { routeId in
                         if let times = context.state.allArrivalTimes[routeId], !times.isEmpty {
                             let displayTimes = Array(times.prefix(2)) // Show next 2 trains
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                // Route header with icon and direction
                                 HStack(spacing: 8) {
-                                    SubwayLineIcon(routeId: routeId, size: 20)
+                                    SubwayLineIcon(routeId: routeId, size: 24)
                                     
                                     if !displayTimes.isEmpty {
-                                        Text(displayTimes[0].direction)
-                                            .font(.system(size: 10))
+                                        Text(displayTimes[0].direction.capitalized)
+                                            .font(.system(size: 12, weight: .medium))
                                             .foregroundColor(.secondary)
+                                            .textCase(.uppercase)
                                     }
                                 }
                                 
-                                HStack(spacing: 4) {
+                                // Arrival times
+                                HStack(spacing: 6) {
                                     ForEach(displayTimes, id: \.id) { arrival in
                                         let minutesUntil = Int(arrival.time.timeIntervalSince(Date()) / 60)
-                                        Text("\(minutesUntil)m")
-                                            .font(.system(size: 11))
-                                            .foregroundColor(.primary)
-                                            .padding(.horizontal, 4)
-                                            .padding(.vertical, 1)
-                                            .background(Color.gray.opacity(0.1))
-                                            .cornerRadius(4)
+                                        VStack(spacing: 1) {
+                                            Text("\(minutesUntil)")
+                                                .font(.system(size: 16, weight: .bold))
+                                                .foregroundColor(.primary)
+                                            Text("min")
+                                                .font(.system(size: 9, weight: .medium))
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .frame(minWidth: 30)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .fill(Color.gray.opacity(0.15))
+                                        )
                                     }
                                 }
                             }
-                            .padding(.vertical, 1)
+                            .padding(8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.gray.opacity(0.08))
+                            )
                         }
                     }
                 }
             }
-            .padding()
+            .padding(16)
             .activityBackgroundTint(Color(.systemBackground))
             .activitySystemActionForegroundColor(Color.primary)
 
