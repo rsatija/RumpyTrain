@@ -64,11 +64,11 @@ enum MTAFeed {
 class GTFSRealtimeManager {
     private let feeds: [MTAFeed] = [.bdfm, .ace, .numbers, .nqrw, .jz, .l, .g]
     
-    func fetchArrivalTimes(for stationId: String, direction: Direction) async throws -> [String: [(Date, String, Bool)]] {
-        var allArrivalTimes: [String: [(Date, String, Bool)]] = [:]
+    func fetchArrivalTimes(for stationId: String, direction: Direction) async throws -> [String: [ArrivalTime]] {
+        var allArrivalTimes: [String: [ArrivalTime]] = [:]
         
         // Fetch from all feeds concurrently
-        try await withThrowingTaskGroup(of: [String: [(Date, String, Bool)]].self) { group in
+        try await withThrowingTaskGroup(of: [String: [ArrivalTime]].self) { group in
             for feed in feeds {
                 group.addTask {
                     try await self.fetchArrivalTimesForFeed(feed, stationId: stationId, direction: direction)
@@ -88,13 +88,13 @@ class GTFSRealtimeManager {
         
         // Sort arrival times for each route
         for route in allArrivalTimes.keys {
-            allArrivalTimes[route]?.sort { $0.0 < $1.0 }
+            allArrivalTimes[route]?.sort { $0.time < $1.time }
         }
         
         return allArrivalTimes
     }
     
-    private func fetchArrivalTimesForFeed(_ feed: MTAFeed, stationId: String, direction: Direction) async throws -> [String: [(Date, String, Bool)]] {
+    private func fetchArrivalTimesForFeed(_ feed: MTAFeed, stationId: String, direction: Direction) async throws -> [String: [ArrivalTime]] {
         do {
             guard let url = URL(string: feed.url) else {
                 print("ERROR: Invalid URL for feed: \(feed)")
@@ -115,7 +115,7 @@ class GTFSRealtimeManager {
                 return [:]
             }
             
-            var arrivalTimes: [String: [(Date, String, Bool)]] = [:]
+            var arrivalTimes: [String: [ArrivalTime]] = [:]
             
             for entity in feedMessage.entity {
                 if !entity.hasTripUpdate { continue }
@@ -152,7 +152,8 @@ class GTFSRealtimeManager {
                                 let isRealTime = tripUpdate.trip.scheduleRelationship == .scheduled
                                 // Only add future times
                                 if date > Date() {
-                                    arrivalTimes[routeId]?.append((date, direction, isRealTime))
+                                    let arrivalTime = ArrivalTime(time: date, direction: direction, isRealTime: isRealTime)
+                                    arrivalTimes[routeId]?.append(arrivalTime)
                                 }
                             }
                         }
@@ -167,7 +168,7 @@ class GTFSRealtimeManager {
         }
     }
     
-    func formatArrivalTimes(_ times: [String: [(Date, String, Bool)]], stationName: String) -> String {
+    func formatArrivalTimes(_ times: [String: [ArrivalTime]], stationName: String) -> String {
         var output = "\nNext arrivals for \(stationName):\n"
         
         // Sort routes alphabetically with numbers first
@@ -185,10 +186,10 @@ class GTFSRealtimeManager {
             let timeStrings = nextTen.map { arrival -> String in
                 let formatter = DateFormatter()
                 formatter.dateFormat = "HH:mm:ss"
-                let timeString = formatter.string(from: arrival.0)
-                let minutes = Int(arrival.0.timeIntervalSince(Date()) / 60)
-                let statusIndicator = arrival.2 ? "(real-time)" : "(scheduled)"
-                return "\(timeString) (\(minutes) min) \(arrival.1) \(statusIndicator)"
+                let timeString = formatter.string(from: arrival.time)
+                let minutes = Int(arrival.time.timeIntervalSince(Date()) / 60)
+                let statusIndicator = arrival.isRealTime ? "(real-time)" : "(scheduled)"
+                return "\(timeString) (\(minutes) min) \(arrival.direction) \(statusIndicator)"
             }
             output += "\(routeId) train: \(timeStrings.joined(separator: ", "))\n"
         }
@@ -197,7 +198,7 @@ class GTFSRealtimeManager {
     }
     
     // Keep the old method for backward compatibility
-    func formatArrivalTimes(_ times: [String: [(Date, String, Bool)]]) -> String {
+    func formatArrivalTimes(_ times: [String: [ArrivalTime]]) -> String {
         return formatArrivalTimes(times, stationName: "nearest station")
     }
 } 

@@ -8,6 +8,7 @@
 import SwiftUI
 import CoreLocation
 import MapKit
+import ActivityKit
 
 struct Route: Identifiable {
     let id: String
@@ -29,6 +30,19 @@ struct Route: Identifiable {
     }
 }
 
+struct ArrivalTime: Identifiable, Equatable {
+    let id = UUID()
+    let time: Date
+    let direction: String
+    let isRealTime: Bool
+    
+    static func == (lhs: ArrivalTime, rhs: ArrivalTime) -> Bool {
+        return lhs.time == rhs.time && 
+               lhs.direction == rhs.direction && 
+               lhs.isRealTime == rhs.isRealTime
+    }
+}
+
 struct Station: Identifiable {
     let id: String
     let name: String
@@ -36,7 +50,7 @@ struct Station: Identifiable {
     let longitude: Double
     var distance: Double?
     var routes: [Route]
-    var arrivalTimes: [String: [(Date, String, Bool)]]? // Add arrival times storage with real-time indicator
+    var arrivalTimes: [String: [ArrivalTime]]? // Updated to use ArrivalTime struct
     
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -544,10 +558,90 @@ struct SubwayLineIcon: View {
     }
 }
 
+// Helper view for arrival time display
+struct ArrivalTimeView: View {
+    let routeId: String
+    let times: [ArrivalTime]
+    
+    func minutesUntil(_ date: Date) -> Int {
+        return Int(date.timeIntervalSince(Date()) / 60)
+    }
+    
+    var body: some View {
+        let displayTimes = Array(times.prefix(3))
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                SubwayLineIcon(routeId: routeId, size: 24)
+                
+                if !displayTimes.isEmpty {
+                    Text(displayTimes[0].direction)  // Show direction
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            HStack(spacing: 6) {
+                ForEach(displayTimes) { arrival in
+                    Text("\(minutesUntil(arrival.time))m")
+                        .font(.system(size: 13))
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(6)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// Helper view for arrival times section
+struct ArrivalTimesSection: View {
+    let arrivalTimes: [String: [ArrivalTime]]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(arrivalTimes.keys).sorted(), id: \.self) { routeId in
+                if let times = arrivalTimes[routeId], !times.isEmpty {
+                    ArrivalTimeView(routeId: routeId, times: times)
+                }
+            }
+        }
+    }
+}
+
+// Helper view for live action indicator
+struct LiveActionIndicator: View {
+    let isActive: Bool
+    
+    var body: some View {
+        Group {
+            if isActive {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 12, height: 12)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 2)
+                            )
+                    }
+                    Spacer()
+                }
+                .padding(8)
+            }
+        }
+    }
+}
+
 struct StationCard: View {
     let station: Station
     @State private var showingActionMenu = false
     @State private var isLiveActionActive = false
+    @State private var liveActivity: Activity<RumpyTrainWidgetAttributes>?
     
     func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
@@ -560,17 +654,153 @@ struct StationCard: View {
     }
     
     func startLiveAction() {
-        // TODO: Implement live action start logic
-        print("Starting live action for station: \(station.name)")
-        isLiveActionActive = true
-        showingActionMenu = false
+        print("=== Starting Live Action Debug ===")
+        print("Station: \(station.name)")
+        print("Arrival times available: \(station.arrivalTimes != nil)")
+        
+        guard let arrivalTimes = station.arrivalTimes,
+              !arrivalTimes.isEmpty else {
+            print("No arrival times available for station: \(station.name)")
+            return
+        }
+        
+        print("Number of routes with arrivals: \(arrivalTimes.count)")
+        for (routeId, times) in arrivalTimes {
+            print("Route \(routeId): \(times.count) arrivals")
+        }
+        
+        // Find the next arrival time
+        var nextArrival: ArrivalTime?
+        var nextRouteId = ""
+        
+        for (routeId, times) in arrivalTimes {
+            if let firstTime = times.first {
+                if nextArrival == nil || firstTime.time < nextArrival!.time {
+                    nextArrival = firstTime
+                    nextRouteId = routeId
+                }
+            }
+        }
+        
+        guard let arrival = nextArrival else {
+            print("No valid arrival times found for station: \(station.name)")
+            return
+        }
+        
+        // Create Live Activity attributes
+        let attributes = RumpyTrainWidgetAttributes(
+            stationName: station.name,
+            routeId: nextRouteId
+        )
+        
+        let contentState = RumpyTrainWidgetAttributes.ContentState(
+            nextArrivalTime: arrival.time,
+            routeId: nextRouteId,
+            direction: arrival.direction,
+            stationName: station.name
+        )
+        
+        do {
+            let activity = try Activity.request(
+                attributes: attributes,
+                contentState: contentState,
+                pushType: nil
+            )
+            liveActivity = activity
+            isLiveActionActive = true
+            showingActionMenu = false
+            print("Started Live Activity for station: \(station.name)")
+            print("Activity ID: \(activity.id)")
+            print("Activity state: \(activity.activityState)")
+            print("Content state: \(contentState)")
+        } catch {
+            print("Failed to start Live Activity: \(error)")
+            print("Error details: \(error.localizedDescription)")
+        }
     }
     
     func endLiveAction() {
-        // TODO: Implement live action end logic
-        print("Ending live action for station: \(station.name)")
-        isLiveActionActive = false
-        showingActionMenu = false
+        Task {
+            await liveActivity?.end(dismissalPolicy: .immediate)
+            liveActivity = nil
+            isLiveActionActive = false
+            showingActionMenu = false
+            print("Ended Live Activity for station: \(station.name)")
+        }
+    }
+    
+    func updateLiveActivity() {
+        guard let activity = liveActivity,
+              let arrivalTimes = station.arrivalTimes,
+              !arrivalTimes.isEmpty else {
+            return
+        }
+        
+        // Find the next arrival time
+        var nextArrival: ArrivalTime?
+        var nextRouteId = ""
+        
+        for (routeId, times) in arrivalTimes {
+            if let firstTime = times.first {
+                if nextArrival == nil || firstTime.time < nextArrival!.time {
+                    nextArrival = firstTime
+                    nextRouteId = routeId
+                }
+            }
+        }
+        
+        guard let arrival = nextArrival else {
+            return
+        }
+        
+        let contentState = RumpyTrainWidgetAttributes.ContentState(
+            nextArrivalTime: arrival.time,
+            routeId: nextRouteId,
+            direction: arrival.direction,
+            stationName: station.name
+        )
+        
+        Task {
+            await activity.update(using: contentState)
+        }
+    }
+    
+    func testSimpleLiveActivity() {
+        print("=== Testing Simple Live Activity ===")
+        
+        let attributes = RumpyTrainWidgetAttributes(
+            stationName: "Test Station",
+            routeId: "1"
+        )
+        
+        let contentState = RumpyTrainWidgetAttributes.ContentState(
+            nextArrivalTime: Date().addingTimeInterval(300), // 5 minutes from now
+            routeId: "1",
+            direction: "uptown",
+            stationName: "Test Station"
+        )
+        
+        do {
+            let activity = try Activity.request(
+                attributes: attributes,
+                contentState: contentState,
+                pushType: nil
+            )
+            print("✅ Simple Live Activity created successfully!")
+            print("Activity ID: \(activity.id)")
+            print("Activity state: \(activity.activityState)")
+            
+            // End it after 10 seconds for testing
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                Task {
+                    await activity.end(dismissalPolicy: .immediate)
+                    print("✅ Simple Live Activity ended")
+                }
+            }
+        } catch {
+            print("❌ Failed to create simple Live Activity: \(error)")
+            print("Error details: \(error.localizedDescription)")
+        }
     }
     
     var body: some View {
@@ -584,37 +814,7 @@ struct StationCard: View {
             
             // Arrival times
             if let arrivalTimes = station.arrivalTimes {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(arrivalTimes.keys).sorted(), id: \.self) { routeId in
-                        if let times = arrivalTimes[routeId], !times.isEmpty {
-                            let displayTimes = Array(times.prefix(3))
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 8) {
-                                    SubwayLineIcon(routeId: routeId, size: 24)
-                                    
-                                    if !displayTimes.isEmpty {
-                                        Text(displayTimes[0].1)  // Show direction
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                
-                                HStack(spacing: 6) {
-                                    ForEach(Array(displayTimes.enumerated()), id: \.offset) { _, arrival in
-                                        Text("\(minutesUntil(arrival.0))m")
-                                            .font(.system(size: 13))
-                                            .foregroundColor(.primary)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color.gray.opacity(0.1))
-                                            .cornerRadius(6)
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    }
-                }
+                ArrivalTimesSection(arrivalTimes: arrivalTimes)
             } else {
                 Text("Loading arrivals...")
                     .font(.system(size: 14))
@@ -627,25 +827,7 @@ struct StationCard: View {
         .cornerRadius(12)
         .shadow(radius: 1, x: 0, y: 1)
         .overlay(
-            // Live action indicator
-            Group {
-                if isLiveActionActive {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 12, height: 12)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white, lineWidth: 2)
-                                )
-                        }
-                        Spacer()
-                    }
-                    .padding(8)
-                }
-            }
+            LiveActionIndicator(isActive: isLiveActionActive)
         )
         .onLongPressGesture {
             showingActionMenu = true
@@ -659,10 +841,18 @@ struct StationCard: View {
                 Button("Start Live Action") {
                     startLiveAction()
                 }
+                Button("Test Simple Live Activity") {
+                    testSimpleLiveActivity()
+                }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Choose an action for \(station.name)")
+        }
+        .onChange(of: station.arrivalTimes) { _ in
+            if isLiveActionActive {
+                updateLiveActivity()
+            }
         }
     }
 }
