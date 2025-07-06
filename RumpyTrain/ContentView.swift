@@ -600,31 +600,7 @@ struct ArrivalTimesSection: View {
     }
 }
 
-// Helper view for live action indicator
-struct LiveActionIndicator: View {
-    let isActive: Bool
-    
-    var body: some View {
-        Group {
-            if isActive {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 12, height: 12)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white, lineWidth: 2)
-                            )
-                    }
-                    Spacer()
-                }
-                .padding(8)
-            }
-        }
-    }
-}
+
 
 struct StationCard: View {
     let station: Station
@@ -781,9 +757,7 @@ struct StationCard: View {
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(radius: 1, x: 0, y: 1)
-        .overlay(
-            LiveActionIndicator(isActive: isLiveActionActive)
-        )
+
         .onLongPressGesture {
             showingActionMenu = true
         }
