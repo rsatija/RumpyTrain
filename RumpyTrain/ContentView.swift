@@ -546,6 +546,8 @@ struct SubwayLineIcon: View {
 
 struct StationCard: View {
     let station: Station
+    @State private var showingActionMenu = false
+    @State private var isLiveActionActive = false
     
     func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
@@ -555,6 +557,20 @@ struct StationCard: View {
     
     func minutesUntil(_ date: Date) -> Int {
         return Int(date.timeIntervalSince(Date()) / 60)
+    }
+    
+    func startLiveAction() {
+        // TODO: Implement live action start logic
+        print("Starting live action for station: \(station.name)")
+        isLiveActionActive = true
+        showingActionMenu = false
+    }
+    
+    func endLiveAction() {
+        // TODO: Implement live action end logic
+        print("Ending live action for station: \(station.name)")
+        isLiveActionActive = false
+        showingActionMenu = false
     }
     
     var body: some View {
@@ -610,6 +626,44 @@ struct StationCard: View {
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(radius: 1, x: 0, y: 1)
+        .overlay(
+            // Live action indicator
+            Group {
+                if isLiveActionActive {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 12, height: 12)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white, lineWidth: 2)
+                                )
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
+                }
+            }
+        )
+        .onLongPressGesture {
+            showingActionMenu = true
+        }
+        .confirmationDialog("Station Actions", isPresented: $showingActionMenu) {
+            if isLiveActionActive {
+                Button("End Live Action", role: .destructive) {
+                    endLiveAction()
+                }
+            } else {
+                Button("Start Live Action") {
+                    startLiveAction()
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Choose an action for \(station.name)")
+        }
     }
 }
 
