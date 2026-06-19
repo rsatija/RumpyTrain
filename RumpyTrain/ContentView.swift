@@ -46,6 +46,43 @@ struct Station: Identifiable {
     }
 }
 
+struct StationPreset: Identifiable, Codable, Equatable {
+    let id: String
+    var name: String
+    var stationIDs: [String]
+}
+
+enum StationDisplayMode: Equatable {
+    case nearby
+    case preset(String)
+}
+
+enum PresetStationStore {
+    private static let legacySeparator = "|"
+
+    static func decodeLegacyStationIDs(_ value: String) -> [String] {
+        value
+            .split(separator: Character(legacySeparator))
+            .map(String.init)
+    }
+
+    static func decodePresets(_ value: String) -> [StationPreset] {
+        guard let data = value.data(using: .utf8),
+              let presets = try? JSONDecoder().decode([StationPreset].self, from: data) else {
+            return []
+        }
+        return presets
+    }
+
+    static func encodePresets(_ presets: [StationPreset]) -> String {
+        guard let data = try? JSONEncoder().encode(presets),
+              let value = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return value
+    }
+}
+
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     @Published var location: CLLocation?
@@ -269,7 +306,7 @@ class SubwayStationsManager: ObservableObject {
         print("DEBUG: Loaded \(stations.count) stations")
     }
     
-    func updateDistances(from location: CLLocation, direction: Direction) {
+    func updateDistances(from location: CLLocation, direction: Direction, focusedStationIDs: Set<String>? = nil) {
         stations = stations.map { station in
             var updatedStation = station
             let stationLocation = CLLocation(latitude: station.latitude, longitude: station.longitude)
@@ -277,17 +314,24 @@ class SubwayStationsManager: ObservableObject {
             return updatedStation
         }.sorted { ($0.distance ?? Double.infinity) < ($1.distance ?? Double.infinity) }
         
-        // Fetch real-time arrival times for the 6 nearest stations
+        let stationsForArrivals: [Station]
+        if let focusedStationIDs {
+            stationsForArrivals = stations.filter { focusedStationIDs.contains($0.id) }
+        } else {
+            stationsForArrivals = Array(stations.prefix(6))
+        }
+
+        // Fetch real-time arrival times for the visible station set.
         Task {
-            var updatedStations = stations
-            for (index, station) in stations.prefix(6).enumerated() {
+            for station in stationsForArrivals {
                 do {
                     let arrivalTimes = try await gtfsRealtimeManager.fetchArrivalTimes(for: station.id, direction: direction)
                     
                     // Update the station with arrival times
                     DispatchQueue.main.async {
-                        updatedStations[index].arrivalTimes = arrivalTimes
-                        self.stations = updatedStations
+                        if let index = self.stations.firstIndex(where: { $0.id == station.id }) {
+                            self.stations[index].arrivalTimes = arrivalTimes
+                        }
                     }
                 } catch {
                     print("DEBUG: Failed to fetch arrival times for \(station.name): \(error)")
@@ -447,7 +491,7 @@ struct MapView: UIViewRepresentable {
         mapView.removeAnnotations(stationAnnotations)
         
         // Add station annotations
-        let annotations = stations.prefix(6).map { station -> StationAnnotation in
+        let annotations = stations.map { station -> StationAnnotation in
             StationAnnotation(station: station)
         }
         mapView.addAnnotations(annotations)
@@ -455,11 +499,21 @@ struct MapView: UIViewRepresentable {
         // Set the region to show all annotations and user location
         if let location = location {
             var coordinates: [CLLocationCoordinate2D] = [location.coordinate]
-            coordinates.append(contentsOf: stations.prefix(6).map { $0.coordinate })
+            coordinates.append(contentsOf: stations.map { $0.coordinate })
             
             // Add manual location pin if it exists
             if let manualLocation = context.coordinator.manualLocationAnnotation {
                 coordinates.append(manualLocation.coordinate)
+            }
+
+            if coordinates.count == 1 {
+                let region = MKCoordinateRegion(
+                    center: location.coordinate,
+                    latitudinalMeters: 1000,
+                    longitudinalMeters: 1000
+                )
+                mapView.setRegion(region, animated: true)
+                return
             }
             
             let mapRect = coordinates.reduce(MKMapRect.null) { rect, coordinate in
@@ -604,6 +658,8 @@ struct ArrivalTimesSection: View {
 
 struct StationCard: View {
     let station: Station
+    let isPresetMember: Bool
+    let onTogglePreset: (() -> Void)?
     @State private var showingActionMenu = false
     @State private var isLiveActionActive = false
     @State private var liveActivity: Activity<RumpyTrainWidgetAttributes>?
@@ -736,12 +792,27 @@ struct StationCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(station.name)
-                .font(.headline)
-                .fontWeight(.bold)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
-                .padding(.bottom, 4)
+            HStack(alignment: .top, spacing: 8) {
+                Text(station.name)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .padding(.bottom, 4)
+
+                Spacer(minLength: 8)
+
+                if let onTogglePreset {
+                    Button(action: onTogglePreset) {
+                        Image(systemName: isPresetMember ? "minus.circle.fill" : "plus.circle.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(isPresetMember ? .red : .blue)
+                            .padding(2)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isPresetMember ? "Remove \(station.name) from preset" : "Add \(station.name) to preset")
+                }
+            }
             
             // Arrival times
             if let arrivalTimes = station.arrivalTimes {
@@ -783,23 +854,270 @@ struct StationCard: View {
     }
 }
 
+struct PresetStationPickerView: View {
+    let stations: [Station]
+    let preset: StationPreset
+    let onPresetChanged: () -> Void
+    let onStationIDsChanged: ([String]) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+    @State private var stationIDs: [String]
+
+    init(
+        stations: [Station],
+        preset: StationPreset,
+        onPresetChanged: @escaping () -> Void,
+        onStationIDsChanged: @escaping ([String]) -> Void
+    ) {
+        self.stations = stations
+        self.preset = preset
+        self.onPresetChanged = onPresetChanged
+        self.onStationIDsChanged = onStationIDsChanged
+        _stationIDs = State(initialValue: preset.stationIDs)
+    }
+
+    private var presetStationIDSet: Set<String> {
+        Set(stationIDs)
+    }
+
+    private var filteredStations: [Station] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return stations }
+        return stations.filter { station in
+            station.name.localizedCaseInsensitiveContains(query)
+                || station.routes.contains { $0.name.localizedCaseInsensitiveContains(query) }
+        }
+    }
+
+    private func toggleStation(_ station: Station) {
+        if stationIDs.contains(station.id) {
+            stationIDs.removeAll { $0 == station.id }
+        } else {
+            stationIDs.append(station.id)
+        }
+        onStationIDsChanged(stationIDs)
+        onPresetChanged()
+    }
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 12) {
+                TextField("Search stations or lines", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                List(filteredStations) { station in
+                    Button(action: {
+                        toggleStation(station)
+                    }) {
+                        HStack(spacing: 10) {
+                            Image(systemName: presetStationIDSet.contains(station.id) ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(presetStationIDSet.contains(station.id) ? .blue : .secondary)
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(station.name)
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+
+                                HStack(spacing: 4) {
+                                    ForEach(station.routes.prefix(6)) { route in
+                                        SubwayLineIcon(routeId: route.name, size: 18)
+                                    }
+                                }
+                            }
+
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .listStyle(.plain)
+            }
+            .navigationTitle(preset.name)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct ContentView: View {
     @StateObject private var locationManager = LocationManager()
     @StateObject private var subwayStationsManager = SubwayStationsManager()
     @State private var mapViewCoordinator: MapView.Coordinator?
     @State private var selectedDirection: Direction = .uptown
+    @State private var stationDisplayMode: StationDisplayMode = .nearby
+    @State private var showingPresetManager = false
+    @AppStorage("stationPresets") private var stationPresetsStorage = ""
+    @AppStorage("presetStationIDs") private var legacyPresetStationIDsStorage = ""
     @State private var timer: Timer?
+
+    private var presets: [StationPreset] {
+        get {
+            PresetStationStore.decodePresets(stationPresetsStorage)
+        }
+        nonmutating set {
+            stationPresetsStorage = PresetStationStore.encodePresets(newValue)
+        }
+    }
+
+    private var activePreset: StationPreset? {
+        guard case .preset(let presetID) = stationDisplayMode else { return nil }
+        return presets.first { $0.id == presetID }
+    }
+
+    private var activePresetStationIDSet: Set<String> {
+        Set(activePreset?.stationIDs ?? [])
+    }
+
+    private var isPresetMode: Bool {
+        if case .preset = stationDisplayMode {
+            return true
+        }
+        return false
+    }
+
+    private var currentStationListTitle: String {
+        switch stationDisplayMode {
+        case .nearby:
+            return "Nearby"
+        case .preset:
+            return activePreset?.name ?? "Preset"
+        }
+    }
+
+    private var visibleStations: [Station] {
+        switch stationDisplayMode {
+        case .nearby:
+            return Array(subwayStationsManager.stations.prefix(6))
+        case .preset:
+            return subwayStationsManager.stations.filter { activePresetStationIDSet.contains($0.id) }
+        }
+    }
+
+    private func refreshStationData(for location: CLLocation) {
+        let focusedStationIDs = isPresetMode ? activePresetStationIDSet : nil
+        subwayStationsManager.updateDistances(from: location, direction: selectedDirection, focusedStationIDs: focusedStationIDs)
+    }
+
+    private func refreshStationDataIfPossible() {
+        if let location = locationManager.location {
+            refreshStationData(for: location)
+        }
+    }
+
+    private func togglePresetStation(_ station: Station) {
+        guard let preset = activePreset else { return }
+        var stationIDs = preset.stationIDs
+        if stationIDs.contains(station.id) {
+            stationIDs.removeAll { $0 == station.id }
+        } else {
+            stationIDs.append(station.id)
+        }
+        updatePresetStationIDs(stationIDs, for: preset.id)
+        refreshStationDataIfPossible()
+    }
+
+    private func selectPreset(_ presetID: String) {
+        stationDisplayMode = .preset(presetID)
+        refreshStationDataIfPossible()
+    }
+
+    private func createPreset() {
+        let preset = StationPreset(
+            id: UUID().uuidString,
+            name: "Preset \(presets.count + 1)",
+            stationIDs: []
+        )
+        var updatedPresets = presets
+        updatedPresets.append(preset)
+        presets = updatedPresets
+        stationDisplayMode = .preset(preset.id)
+        showingPresetManager = true
+        refreshStationDataIfPossible()
+    }
+
+    private func updatePresetStationIDs(_ stationIDs: [String], for presetID: String) {
+        var updatedPresets = presets
+        guard let index = updatedPresets.firstIndex(where: { $0.id == presetID }) else { return }
+        updatedPresets[index].stationIDs = stationIDs
+        presets = updatedPresets
+    }
+
+    private func migrateLegacyPresetIfNeeded() {
+        let legacyStationIDs = PresetStationStore.decodeLegacyStationIDs(legacyPresetStationIDsStorage)
+        guard presets.isEmpty, !legacyStationIDs.isEmpty else { return }
+        presets = [
+            StationPreset(
+                id: UUID().uuidString,
+                name: "Preset 1",
+                stationIDs: legacyStationIDs
+            )
+        ]
+    }
+
+    private var stationViewMenu: some View {
+        Menu {
+            Button(action: {
+                stationDisplayMode = .nearby
+                refreshStationDataIfPossible()
+            }) {
+                Label("Nearby", systemImage: stationDisplayMode == .nearby ? "checkmark" : "location")
+            }
+
+            if !presets.isEmpty {
+                Section("Presets") {
+                    ForEach(presets) { preset in
+                        Button(action: {
+                            selectPreset(preset.id)
+                        }) {
+                            Label(
+                                preset.name,
+                                systemImage: activePreset?.id == preset.id ? "checkmark" : "tram.fill"
+                            )
+                        }
+                    }
+                }
+            }
+
+            if let activePreset {
+                Button(action: {
+                    showingPresetManager = true
+                }) {
+                    Label("Edit \(activePreset.name)", systemImage: "slider.horizontal.3")
+                }
+            }
+
+            Button(action: createPreset) {
+                Label("Add New Preset", systemImage: "plus")
+            }
+        } label: {
+            Image(systemName: isPresetMode ? "bookmark.fill" : "location.circle")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.blue)
+                .frame(width: 36, height: 36)
+                .background(Color(.systemBackground).opacity(0.92))
+                .clipShape(Circle())
+                .shadow(radius: 1, x: 0, y: 1)
+        }
+        .accessibilityLabel("Choose station view")
+    }
     
     func handleMapLongPress(at coordinate: CLLocationCoordinate2D) {
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         locationManager.setManualLocation(location)
-        subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
+        refreshStationData(for: location)
     }
     
     func handleResetLocation() {
         if let userLocation = locationManager.getCurrentLocation() {
             locationManager.location = userLocation
-            subwayStationsManager.updateDistances(from: userLocation, direction: selectedDirection)
+            refreshStationData(for: userLocation)
         }
     }
     
@@ -808,7 +1126,7 @@ struct ContentView: View {
         timer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
             if let location = locationManager.location {
                 print("\nRefreshing arrival times...")
-                subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
+                refreshStationData(for: location)
             }
         }
     }
@@ -818,14 +1136,32 @@ struct ContentView: View {
             GeometryReader { geometry in
                 VStack(spacing: 0) {
                     // Title
-                    Text("RumpyTrain")
-                        .font(.system(size: min(geometry.size.width * 0.1, 40), weight: .bold, design: .rounded))
-                        .foregroundColor(.blue)
-                        .padding(.vertical, 8)
+                    HStack(spacing: 8) {
+                        stationViewMenu
+
+                        Spacer()
+
+                        VStack(spacing: 2) {
+                            Text("RumpyTrain")
+                                .font(.system(size: min(geometry.size.width * 0.1, 40), weight: .bold, design: .rounded))
+                                .foregroundColor(.blue)
+
+                            Text(currentStationListTitle)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Color.clear
+                            .frame(width: 36, height: 36)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                     
                     // Map with overlay button
                     MapView(location: locationManager.location, 
-                           stations: subwayStationsManager.stations,
+                           stations: visibleStations,
                            coordinator: $mapViewCoordinator,
                            onLocationLongPress: handleMapLongPress,
                            onResetLocation: handleResetLocation)
@@ -856,17 +1192,37 @@ struct ContentView: View {
                     .padding(.vertical, 4)
                     
                     if let location = locationManager.location {
-                        ScrollView {
-                            LazyVGrid(columns: [
-                                GridItem(.adaptive(minimum: geometry.size.width > 768 ? 300 : 150), spacing: 16)
-                            ], spacing: 16) {
-                                ForEach(subwayStationsManager.stations.prefix(6)) { station in
-                                    StationCard(station: station)
-                                        .frame(maxWidth: .infinity)
+                        if isPresetMode && visibleStations.isEmpty {
+                            Spacer()
+                            VStack(spacing: 12) {
+                                Text("No stations in \(currentStationListTitle) yet")
+                                    .font(.headline)
+                                Button("Choose Stations") {
+                                    showingPresetManager = true
                                 }
+                                .buttonStyle(.borderedProminent)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
+                            .foregroundColor(.secondary)
+                            Spacer()
+                        } else {
+                            ScrollView {
+                                LazyVGrid(columns: [
+                                    GridItem(.adaptive(minimum: geometry.size.width > 768 ? 300 : 150), spacing: 16)
+                                ], spacing: 16) {
+                                    ForEach(visibleStations) { station in
+                                        StationCard(
+                                            station: station,
+                                            isPresetMember: activePresetStationIDSet.contains(station.id),
+                                            onTogglePreset: isPresetMode ? {
+                                                togglePresetStation(station)
+                                            } : nil
+                                        )
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                            }
                         }
                     } else {
                         Spacer()
@@ -876,7 +1232,20 @@ struct ContentView: View {
                 }
             }
             .navigationBarHidden(true)
+            .sheet(isPresented: $showingPresetManager) {
+                if let activePreset {
+                    PresetStationPickerView(
+                        stations: subwayStationsManager.stations,
+                        preset: activePreset,
+                        onPresetChanged: refreshStationDataIfPossible,
+                        onStationIDsChanged: { stationIDs in
+                            updatePresetStationIDs(stationIDs, for: activePreset.id)
+                        }
+                    )
+                }
+            }
             .onAppear {
+                migrateLegacyPresetIfNeeded()
                 subwayStationsManager.loadStations()
                 locationManager.requestLocation()
                 startTimer()
@@ -887,14 +1256,15 @@ struct ContentView: View {
             }
             .onChange(of: locationManager.location) { newLocation in
                 if let location = newLocation {
-                    subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
+                    refreshStationData(for: location)
                     startTimer()
                 }
             }
             .onChange(of: selectedDirection) { _ in
-                if let location = locationManager.location {
-                    subwayStationsManager.updateDistances(from: location, direction: selectedDirection)
-                }
+                refreshStationDataIfPossible()
+            }
+            .onChange(of: stationDisplayMode) { _ in
+                refreshStationDataIfPossible()
             }
             .preferredColorScheme(.light)
         }
