@@ -605,6 +605,27 @@ struct SubwayLineIcon: View {
 struct ArrivalTimeView: View {
     let routeId: String
     let times: [ArrivalTime]
+
+    private func directionLabel(for direction: String) -> String {
+        switch (routeId, direction) {
+        case ("L", "uptown"):
+            return "(8 Av)"
+        case ("L", "downtown"):
+            return "(Brooklyn)"
+        case ("7", "uptown"), ("7X", "uptown"),
+             ("J", "uptown"), ("Z", "uptown"):
+            return "(Queens)"
+        case ("7", "downtown"), ("7X", "downtown"),
+             ("J", "downtown"), ("Z", "downtown"):
+            return "(Manhattan)"
+        case ("G", "uptown"):
+            return "(Queens)"
+        case ("G", "downtown"):
+            return "(Brooklyn)"
+        default:
+            return direction
+        }
+    }
     
     func minutesUntil(_ date: Date) -> Int {
         return Int(date.timeIntervalSince(Date()) / 60)
@@ -617,7 +638,7 @@ struct ArrivalTimeView: View {
                 SubwayLineIcon(routeId: routeId, size: 24)
                 
                 if !displayTimes.isEmpty {
-                    Text(displayTimes[0].direction)  // Show direction only
+                    Text(directionLabel(for: displayTimes[0].direction))
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
